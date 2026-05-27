@@ -1,0 +1,505 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="02-ARM-R_urdf">
+<mujoco>
+    <compiler meshdir="../../meshes/v3.2/" balanceinertia="true" discardvisual="false" />
+  </mujoco>
+
+  <link
+    name="base_link-r">
+    <inertial>
+      <origin
+        xyz="-0.000182361709235534 7.06355880796897E-07 0.0170275668183922"
+        rpy="0 0 0" />
+      <mass
+        value="0.414191853032205" />
+      <inertia
+        ixx="0.000210082674638671"
+        ixy="1.3970011975797E-08"
+        ixz="2.13042786092577E-06"
+        iyy="0.000195666854905052"
+        iyz="-2.10586251693896E-07"
+        izz="0.000314316722439176" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://armcontrol/meshes/v3.2/base_link-r.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0.020125"
+        rpy="0 0 0" />
+      <geometry>
+        <cylinder length="0.04025" radius="0.04"/>
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="Link1-r">
+    <inertial>
+      <origin
+        xyz="-0.0088527831836268 -0.000280590537265678 0.0670633885126601"
+        rpy="0 0 0" />
+      <mass
+        value="0.397204280707897" />
+      <inertia
+        ixx="0.000370077014374239"
+        ixy="-1.06759283589082E-06"
+        ixz="4.91266150277828E-05"
+        iyy="0.000386592571434648"
+        iyz="2.22031177059772E-09"
+        izz="0.00017752007799864" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://armcontrol/meshes/v3.2/Link1-r.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0.063725"
+        rpy="0 0 0" />
+      <geometry>
+        <cylinder length="0.13745" radius="0.046"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint1-r"
+    type="revolute">
+    <origin
+      xyz="0 0 0.04025"
+      rpy="0 0 0" />
+    <parent
+      link="base_link-r" />
+    <child
+      link="Link1-r" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1.053"
+      upper="3.169"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="Link2-r">
+    <inertial>
+      <origin
+        xyz="-1.8639805344306E-05 -0.0601388137816362 -0.0192816864206363"
+        rpy="0 0 0" />
+      <mass
+        value="0.290860547999768" />
+      <inertia
+        ixx="0.000239192935475152"
+        ixy="-3.03151105645037E-07"
+        ixz="-2.51820016430922E-07"
+        iyy="0.000147541815573961"
+        iyz="-5.20878530557861E-05"
+        izz="0.000208737092315753" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://armcontrol/meshes/v3.2/Link2-r.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 -0.041625 -0.024"
+        rpy="1.57 0 0" />
+      <geometry>
+        <cylinder length="0.13925" radius="0.043"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint2-r"
+    type="revolute">
+    <origin
+      xyz="0.0279999999999086 0 0.0994500000000517"
+      rpy="0 1.5707963267949 0" />
+    <parent
+      link="Link1-r" />
+    <child
+      link="Link2-r" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-3.081"
+      upper="0.314"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="Link3-r">
+    <inertial>
+      <origin
+        xyz="0.00859970552047482 -1.6150512149541E-05 0.0847583668384572"
+        rpy="0 0 0" />
+      <mass
+        value="0.396418724009433" />
+      <inertia
+        ixx="0.000578190690141254"
+        ixy="4.44038884461996E-07"
+        ixz="-8.65425659199926E-05"
+        iyy="0.000614875795560453"
+        iyz="6.08349306904507E-07"
+        izz="0.00019076387100294" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://armcontrol/meshes/v3.2/Link3-r.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0.006 0 0.075125"
+        rpy="0 0 0" />
+      <geometry>
+        <cylinder length="0.15025" radius="0.045"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint3-r"
+    type="revolute">
+    <origin
+      xyz="0 -0.111249999999909 -0.0280000000000575"
+      rpy="1.57079632679488 0 0" />
+    <parent
+      link="Link2-r" />
+    <child
+      link="Link3-r" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-2.777"
+      upper="2.762"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="Link4-r">
+    <inertial>
+      <origin
+        xyz="0.000139910248601694 0.0548754536965681 0.0183647611558082"
+        rpy="0 0 0" />
+      <mass
+        value="0.256791984520982" />
+      <inertia
+        ixx="0.000214505454996505"
+        ixy="2.90804615983379E-07"
+        ixz="2.46776144393051E-07"
+        iyy="0.000132821556554372"
+        iyz="-4.85495669116698E-05"
+        izz="0.000186826848337348" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://armcontrol/meshes/v3.2/Link4-r.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0.0365 0.024241"
+        rpy="-1.57 0 0" />
+      <geometry>
+        <cylinder length="0.129" radius="0.043"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint4-r"
+    type="revolute">
+    <origin
+      xyz="-0.0279000000000598 0 0.12224999999998"
+      rpy="1.57079632679438 0 1.57079632679462" />
+    <parent
+      link="Link3-r" />
+    <child
+      link="Link4-r" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="-1.911"
+      upper="1.948"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="Link5-r">
+    <inertial>
+      <origin
+        xyz="-0.000135503725623196 0.00742806454320225 0.0799053478107675"
+        rpy="0 0 0" />
+      <mass
+        value="0.354214169608428" />
+      <inertia
+        ixx="0.000548269379618143"
+        ixy="-4.34820630073385E-07"
+        ixz="-6.73567649640058E-07"
+        iyy="0.000531094255273423"
+        iyz="-6.29982137310129E-05"
+        izz="0.000156454806559366" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://armcontrol/meshes/v3.2/Link5-r.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0.004 0.074"
+        rpy="0 0 0" />
+      <geometry>
+        <cylinder length="0.148" radius="0.041"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint5-r"
+    type="revolute">
+    <origin
+      xyz="0.000161624104389922 0.100999459309484 0.0282406303227471"
+      rpy="-1.57079632679511 0 0" />
+    <parent
+      link="Link4-r" />
+    <child
+      link="Link5-r" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-2.789"
+      upper="2.761"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="Link6-r">
+    <inertial>
+      <origin
+        xyz="-7.24311831700583E-06 0.0620765902646082 -0.017057228667598"
+        rpy="0 0 0" />
+      <mass
+        value="0.272133556315866" />
+      <inertia
+        ixx="0.000273282403887826"
+        ixy="4.65806521438473E-08"
+        ixz="-3.84447752626157E-08"
+        iyy="0.000137303774992641"
+        iyz="6.07315107574488E-05"
+        izz="0.00024779917121253" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://armcontrol/meshes/v3.2/Link6-r.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.592156862745098 0.666666666666667 0.682352941176471 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0.042 -0.019409"
+        rpy="1.57 0 0" />
+      <geometry>
+        <cylinder length="0.14" radius="0.044"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint6-r"
+    type="revolute">
+    <origin
+      xyz="-0.000161624104366318 -0.0234093696773108 0.120000540690592"
+      rpy="1.57079632679495 0 0" />
+    <parent
+      link="Link5-r" />
+    <child
+      link="Link6-r" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1.288"
+      upper="1.508"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="Link7-r">
+    <inertial>
+      <origin
+        xyz="1.51715728188427E-16 -9.71445146547012E-16 0.0033644780157378"
+        rpy="0 0 0" />
+      <mass
+        value="0.0156367952000345" />
+      <inertia
+        ixx="1.24351573484494E-06"
+        ixy="-5.74652700040295E-21"
+        ixz="1.80733327549133E-19"
+        iyy="1.2135847017907E-06"
+        iyz="2.259272255102E-21"
+        izz="2.32930826541179E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://armcontrol/meshes/v3.2/Link7-r.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0.00468 0.0035"
+        rpy="0 0 0" />
+      <geometry>
+        <cylinder length="0.007" radius="0.03"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="joint7-r"
+    type="revolute">
+    <origin
+      xyz="0 0.112000000000007 -0.0282500000000157"
+      rpy="1.57079632679491 0 -3.14159265358979" />
+    <parent
+      link="Link6-r" />
+    <child
+      link="Link7-r" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <!-- <link
+    name="Link-load-r">
+    <inertial>
+      <origin
+        xyz="-1.2769283408746E-14 1.58484336765241E-14 -0.0764999999999999"
+        rpy="0 0 0" />
+      <mass
+        value="0.129779192519794" />
+      <inertia
+        ixx="0.000256411239620984"
+        ixy="7.39106146801267E-23"
+        ixz="-4.16979976074886E-17"
+        iyy="0.000256411239620984"
+        iyz="1.86435950580104E-17"
+        izz="6.48895962598972E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://armcontrol/meshes/v3.2/Link-load-r.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://armcontrol/meshes/v3.2/Link-load-r.STL" />
+      </geometry>
+    </collision>
+  </link> -->
+
+  <link
+    name="right_load" />
+  <joint
+    name="right_load_joint"
+    type="fixed">
+    <origin
+      xyz="0 0 0.172"
+      rpy="0 0 0" />
+    <parent
+      link="Link7-r" />
+    <child
+      link="right_load" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+</robot>

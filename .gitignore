@@ -73,3 +73,15 @@ datasets
 
 # Mimic
 *.npz
+
+# Videos
+*.mp4
+
+# CMake build artifacts
+deploy/robots/CMakeCache.txt
+deploy/robots/CMakeFiles/
+deploy/robots/Makefile
+deploy/robots/cmake_install.cmake
+
+# MuJoCo
+MUJOCO_LOG.TXT
