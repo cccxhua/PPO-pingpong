@@ -1,0 +1,95 @@
+scripts/deploy/x1_table_tennis_deploy.py
+  s_8c2ed7c64e942a::t_387e130f51ebc3 581-735
+x1/x1/urdf/x1.urdf
+  h_b23a6a8439c0dd 360
+scripts/sim2sim/x1_play_mujoco.py
+  s_8c2ed7c64e942a::t_15657491f9acaf 952-965
+  s_8c2ed7c64e942a::t_3f011cb26514d3 67-68
+  s_8c2ed7c64e942a::t_c2ada3eabdf77a 304-308
+  s_b6db746ee76170::t_bd2f27e5ff2fa8 328-500
+  s_8c2ed7c64e942a::t_6b669ea1bbc655 560,570-572
+  s_8c2ed7c64e942a::t_9437156c08ab69 586,595-597
+  s_8c2ed7c64e942a::t_c09041a8480dbb 585,591,598-599
+  s_b6db746ee76170::t_a758987284ea55 222-253
+  s_651f9aa1f14fbc::t_51b576f4040963 604-686,689,691-718
+  s_651f9aa1f14fbc::t_1f4a236dbe1f88 873-884
+  s_b6db746ee76170::t_6700ab4c1b2dfd 887-904
+  s_b6db746ee76170::t_2d864bb4575fb2 924,926-927,929,937
+  s_b6db746ee76170::t_bba6266f8bf413 984-992,1004,1019-1020,1032-1108,1110,1121-1131,1133-1157
+  s_b6db746ee76170::t_2965610d0ce4de 993-1003,1005-1013,1021-1031
+  s_8c2ed7c64e942a::t_35371f747f3c90 1109,1113-1117
+  s_651f9aa1f14fbc::t_c78d073725089b 743-748
+  s_b6db746ee76170::t_fa44a56e99b139 568-569
+  s_8c2ed7c64e942a::t_fd73281dc4cb71 557-558,561,573-578
+  s_b6db746ee76170::t_73cbb75e8f2868 1111,1118-1120
+  s_b6db746ee76170::t_62e862c68e5dff 61-65
+  s_8c2ed7c64e942a::t_0b11cfd1751396 23-24,26
+  s_b6db746ee76170::t_71c8fb54e4e3c9 295-297
+  s_8c2ed7c64e942a::t_64b82ab4bea254 41-53
+  s_8c2ed7c64e942a::t_328f7d374afaa4 587-588,590
+  s_8c2ed7c64e942a::t_272145d94b1b1b 592-594
+  s_651f9aa1f14fbc::t_258edc0e32ee79 687-688,690
+  s_8c2ed7c64e942a::t_17f27b61518e9c 25
+  s_b6db746ee76170::t_4f5c5979897f28 1185-1186,1188-1190,1214-1217
+  s_8c2ed7c64e942a::t_dedde7162d252a 262-264
+  s_8c2ed7c64e942a::t_adf69db1367bdc 70-77
+  s_8c2ed7c64e942a::t_ecc2a3ddbfc1a8 938-947
+  s_b6db746ee76170::t_4c6b5fbf19dfe5 780,782-785,791-792,797-812
+  s_8c2ed7c64e942a::t_fbbfd9c3c4d609 531
+  s_8c2ed7c64e942a::t_17d64f384e6d49 546-553
+  s_b6db746ee76170::t_1067edda97839b 778-779,781,786-790,793-796,813-823
+  s_b6db746ee76170::t_261852cb47fd63 1191-1192
+  s_b6db746ee76170::t_5a069be8eac9b9 522-525
+  s_b6db746ee76170::t_ddaa760d6d9069 1014-1018
+  s_b6db746ee76170::t_a6395bcf313d4b 1195-1196
+  s_8c2ed7c64e942a::t_03ede1977a3875 589
+  s_8c2ed7c64e942a::t_659218571033b9 1203
+  s_b6db746ee76170::t_957eabebfdf21a 846-849
+  s_8c2ed7c64e942a::t_6cd8e59affcc39 1132
+  s_b6db746ee76170::t_a11ac5a242c029 925,928,930-936
+  s_8c2ed7c64e942a::t_1bd2fcd0c7e23e 1187
+  s_8c2ed7c64e942a::t_2ce57c263c6d44 1112
+  s_b6db746ee76170::t_99b0d2b436c687 1193-1194
+  s_8c2ed7c64e942a::t_984ff38c3ebe9d 265-274
+  s_8c2ed7c64e942a::t_2f647c32b084f8 534-535
+  s_8c2ed7c64e942a::t_9fd4daed0e3119 833-841
+.gitignore
+  s_651f9aa1f14fbc::t_844c6283a97fdd 76-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "06753d51c60538c5d3bd6f1600739940c9c5b1e9",
+  "prompts": {},
+  "humans": {
+    "h_b23a6a8439c0dd": {
+      "author": "unknown"
+    }
+  },
+  "sessions": {
+    "s_651f9aa1f14fbc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fee9770b-d18f-43dd-be19-592ebfd9a0d5",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "cenxinhua <cenxinhua@onerobot.com>"
+    },
+    "s_8c2ed7c64e942a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "97f3daf1-62ec-47eb-a124-dfd0454e2bd4",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "cenxinhua <cenxinhua@onerobot.com>"
+    },
+    "s_b6db746ee76170": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "64b6a24f-aa6e-4aa8-9262-1620ba799eee",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "cenxinhua <cenxinhua@onerobot.com>"
+    }
+  }
+}
