@@ -1,0 +1,223 @@
+scripts/rsl_rl/v76_face_pin.py
+  ai_agent 1-290
+source/unitree_rl_lab/data/robots/x1/woan_robotics_label.png
+  ai_agent 1-3
+scripts/rsl_rl/v62c_face.py
+  ai_agent 1-190
+scripts/rsl_rl/v80_early_pin.py
+  ai_agent 1-325
+x1/.asset_hash
+  ai_agent 1
+scripts/animate_arm_motion.py
+  ai_agent 1-280
+scripts/rsl_rl/v60_face_center_diag.py
+  ai_agent 1-299
+scripts/rsl_rl/v83_ball_return_debug.py
+  ai_agent 1-249
+source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/robots/g1_29dof/forehand/env_cfg.py
+  ai_agent 1-683
+scripts/rsl_rl/probe_left_v2.py
+  ai_agent 1-242
+scripts/rsl_rl/v57_search_hit_pose.py
+  ai_agent 1-205
+source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/mdp/actions.py
+  ai_agent 1-250
+x1/x1/urdf/x1.urdf
+  ai_agent 1-1016
+scripts/rsl_rl/probe_right_v16.py
+  ai_agent 1-249
+scripts/rsl_rl/v59_yb1_sweep.py
+  ai_agent 1-168
+scripts/rsl_rl/v64_yb5_sweep.py
+  ai_agent 1-174
+scripts/rsl_rl/probe_right_v15b.py
+  ai_agent 1-342
+scripts/rsl_rl/v56_paddle_ball.py
+  ai_agent 1-204
+scripts/rsl_rl/v71_elbow_snap.py
+  ai_agent 1-293
+scripts/rsl_rl/play_pure_ref.py
+  ai_agent 1-185
+scripts/rsl_rl/v60_origin_sweep.py
+  ai_agent 1-220
+scripts/rsl_rl/probe_middle_timing.py
+  ai_agent 1-214
+scripts/rsl_rl/compare_middle_right.py
+  ai_agent 1-241
+source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/robots/g1_29dof/forehand_sac/__init__.py
+  ai_agent 1-12
+source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/robots/x1/forehand/create_forehand.py
+  ai_agent 1-384
+scripts/reference_motion_trajectory.png
+  ai_agent 1-3
+source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/mdp/curriculums.py
+  ai_agent 1-57
+scripts/rsl_rl/probe_left_v5.py
+  ai_agent 1-215
+scripts/rsl_rl/probe_left_v5_robust.py
+  ai_agent 1-205
+scripts/list_envs.py
+  ai_agent 61,90
+scripts/rsl_rl/v65b_face.py
+  ai_agent 1-210
+scripts/rsl_rl/probe_right_face.py
+  ai_agent 1-259
+scripts/rsl_rl/v59_y_sweep.py
+  ai_agent 1-204
+scripts/rsl_rl/v72_low_to_high.py
+  ai_agent 1-304
+scripts/rsl_rl/v73_strike_timing.py
+  ai_agent 1-270
+scripts/rsl_rl/probe_right_motion.py
+  ai_agent 1-269
+source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/mdp/__init__.py
+  ai_agent 1-11
+source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/mdp/commands.py
+  ai_agent 1-394
+source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/robots/x1/forehand/__init__.py
+  ai_agent 1-12
+x1/config.yaml
+  ai_agent 1-23
+scripts/rsl_rl/v58_dynamic.py
+  ai_agent 1-153
+scripts/rsl_rl/v65_upswing.py
+  ai_agent 1-203
+scripts/rsl_rl/v62_power.py
+  ai_agent 1-260
+x1/woan_robotics_label.png
+  ai_agent 1-3
+scripts/rl_games/train.py
+  ai_agent 1-152
+scripts/rsl_rl/v85_track_hit_debug.py
+  ai_agent 1-96
+source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/agents/rl_games_sac_cfg.yaml
+  ai_agent 1-56
+scripts/rsl_rl/v79_robustness.py
+  ai_agent 1-331
+scripts/rsl_rl/diagnose_right.py
+  ai_agent 1-273
+source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/mdp/events.py
+  ai_agent 1-156
+scripts/rsl_rl/fk_probe.py
+  ai_agent 1-150
+scripts/rsl_rl/play.py
+  ai_agent 83-84
+scripts/rsl_rl/probe_left_v4.py
+  ai_agent 1-218
+scripts/rsl_rl/v81b_more_vx.py
+  ai_agent 1-278
+x1/x1/urdf/damiao_right.urdf
+  ai_agent 1-505
+scripts/sim2sim/play_mujoco.py
+  ai_agent 1-683
+scripts/rsl_rl/v67b_swing_combo.py
+  ai_agent 1-244
+scripts/convert_urdf_to_usd.py
+  ai_agent 1-46
+scripts/rsl_rl/v68_first_bounce.py
+  ai_agent 1-290
+scripts/rsl_rl/v64_paddle_vz.py
+  ai_agent 1-180
+source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/mdp/terminations.py
+  ai_agent 1-99
+scripts/rsl_rl/v59_paddle_frame_diag.py
+  ai_agent 1-188
+scripts/play_reference_motion.py
+  ai_agent 1-308
+scripts/rsl_rl/v66_power.py
+  ai_agent 1-215
+scripts/rsl_rl/diagnose_hit_geometry.py
+  ai_agent 1-134
+scripts/rsl_rl/v74_collision_force.py
+  ai_agent 1-333
+scripts/rsl_rl/v57_refine.py
+  ai_agent 1-177
+scripts/rsl_rl/probe_left_v3.py
+  ai_agent 1-301
+scripts/rsl_rl/v77_face_xy.py
+  ai_agent 1-318
+source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/robots/x1/forehand/env_cfg.py
+  ai_agent 1-536
+scripts/rsl_rl/v78_vx_more.py
+  ai_agent 1-312
+scripts/rsl_rl/v75_face_angle.py
+  ai_agent 1-292
+scripts/rsl_rl/v63_loft.py
+  ai_agent 1-187
+scripts/rsl_rl/v58_search_hit_pose.py
+  ai_agent 1-125
+scripts/rsl_rl/probe_right_v17.py
+  ai_agent 1-291
+scripts/rsl_rl/v61_lower_elbow.py
+  ai_agent 1-221
+scripts/rsl_rl/v69_face_remap.py
+  ai_agent 1-271
+scripts/sim2sim/x1_play_mujoco.py
+  ai_agent 1-1221
+.gitignore
+  ai_agent 76-87
+scripts/rsl_rl/probe_right_v16b.py
+  ai_agent 1-309
+scripts/rsl_rl/v81_more_vx.py
+  ai_agent 1-324
+scripts/rsl_rl/probe_right_timing.py
+  ai_agent 1-158
+scripts/rsl_rl/probe_left_motion.py
+  ai_agent 1-297
+scripts/rsl_rl/sweep_right_face.py
+  ai_agent 1-251
+scripts/rsl_rl/v57_dynamic_with_ball.py
+  ai_agent 1-151
+scripts/verify_joints.py
+  ai_agent 1-122
+scripts/rsl_rl/v62d_grid.py
+  ai_agent 1-161
+source/unitree_rl_lab/unitree_rl_lab/assets/robots/x1.py
+  ai_agent 1-116
+source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/mdp/rewards.py
+  ai_agent 1-582
+source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/robots/g1_29dof/forehand_sac/env_cfg.py
+  ai_agent 1-350
+scripts/deploy/x1_table_tennis_deploy.py
+  ai_agent 1-808
+scripts/render_reference_motion.py
+  ai_agent 1-165
+scripts/rsl_rl/probe_right_v15.py
+  ai_agent 1-317
+scripts/rsl_rl/v57_dynamic.py
+  ai_agent 1-159
+scripts/rsl_rl/v70_paddle_vz_sweep.py
+  ai_agent 1-284
+scripts/rsl_rl/v82_robust_vx.py
+  ai_agent 1-282
+scripts/rsl_rl/probe_right_v15c.py
+  ai_agent 1-335
+scripts/rsl_rl/v67_pareto.py
+  ai_agent 1-221
+scripts/visualize_reference_motion.py
+  ai_agent 1-187
+scripts/rsl_rl/v62b_reach.py
+  ai_agent 1-194
+scripts/rsl_rl/v84_step_probe.py
+  ai_agent 1-126
+source/unitree_rl_lab/unitree_rl_lab/assets/robots/unitree.py
+  ai_agent 20
+source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/agents/rsl_rl_ppo_cfg.py
+  ai_agent 1-32
+source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/mdp/observations.py
+  ai_agent 1-312
+scripts/rsl_rl/v64_more_loft.py
+  ai_agent 1-183
+source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/robots/g1_29dof/forehand/__init__.py
+  ai_agent 1-12
+source/unitree_rl_lab/unitree_rl_lab/utils/export_deploy_cfg.py
+  ai_agent 24-25,59-65,78,81-85,111
+scripts/rsl_rl/train.py
+  ai_agent 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "9ede8b349ade4affd49cf3b02c6872b49f14ac2f",
+  "prompts": {}
+}
