@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+#####
 export UNITREE_RL_LAB_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 if ! [[ -z "${CONDA_PREFIX}" ]]; then
