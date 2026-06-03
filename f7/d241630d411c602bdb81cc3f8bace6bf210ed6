@@ -1,0 +1,32 @@
+scripts/sim2sim/a1_play_mujoco.py
+  s_ae9f240a6baa18::t_7bad6a2645479d 104-117,121-123,125
+  s_ae9f240a6baa18::t_ff25d7a988a7c5 170,172
+  s_ae9f240a6baa18::t_14d5d0760b6d05 65-66
+  s_ae9f240a6baa18::t_9f743a06d8dcae 22
+  h_e20ef4bd1fe315 89
+  s_ae9f240a6baa18::t_dc22c05441c7a4 1-21,23-64,67-88,90-102,124,126-169,171,173-1074
+  s_ae9f240a6baa18::t_013f39e1e32f15 103,118-120
+scripts/deploy/a1_table_tennis_deploy.py
+  s_ae9f240a6baa18::t_6eef6bfd2338e2 1-816
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f7d241630d411c602bdb81cc3f8bace6bf210ed6",
+  "prompts": {},
+  "humans": {
+    "h_e20ef4bd1fe315": {
+      "author": "cenxinhua <cenxinhua@onerobot.com>"
+    }
+  },
+  "sessions": {
+    "s_ae9f240a6baa18": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9d443918-bb8b-4887-934d-27cf53a2bf2d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "cenxinhua <cenxinhua@onerobot.com>"
+    }
+  }
+}
