@@ -1,0 +1,187 @@
+#usda 1.0
+(
+    defaultPrim = "TableTennisTable"
+    doc = """国际标准乒乓球桌 - 符合ITTF规范
+    桌面尺寸: 2.74m × 1.525m
+    桌面高度: 0.76m
+    颜色: 深蓝色(ITTF官方比赛标准)
+    材质: 木质/复合材料表面
+    """
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+def Xform "TableTennisTable"
+{
+    def Cube "TableTop" (
+        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsRigidBodyAPI"]
+    )
+    {
+        rel material:binding = </TableTennisTable/TableMaterial>
+        bool physics:collisionEnabled = 1
+        bool physics:kinematicEnabled = 1
+        uniform token physics:physicsMaterialPurpose = "default"
+        token physics:restitutionCombineMode = "max"
+        bool physics:rigidBodyEnabled = 1
+        float physxCollision:contactOffset = 0.02
+        float physxCollision:restOffset = 0
+        color3f[] primvars:displayColor = [(0, 0.2, 0.4)]
+        double size = 1
+        double3 xformOp:scale = (2.74, 1.525, 0.05)
+        double3 xformOp:translate = (0, 0, 0.735)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+    }
+
+    def Cube "Net" (
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
+    )
+    {
+        bool physics:collisionEnabled = 1
+        color3f[] primvars:displayColor = [(0.1, 0.1, 0.1)]
+        double size = 1
+        double3 xformOp:scale = (0.0025, 1.525, 0.1525)
+        double3 xformOp:translate = (0, 0, 0.83625)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+    }
+
+    def Cube "CenterLine"
+    {
+        color3f[] primvars:displayColor = [(1, 1, 1)]
+        double size = 1
+        double3 xformOp:scale = (2.74, 0.003, 0.001)
+        double3 xformOp:translate = (0, 0, 0.7605)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+    }
+
+    def Cube "LeftEdgeLine"
+    {
+        color3f[] primvars:displayColor = [(1, 1, 1)]
+        double size = 1
+        double3 xformOp:scale = (2.74, 0.02, 0.001)
+        double3 xformOp:translate = (0, 0.7625, 0.7605)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+    }
+
+    def Cube "RightEdgeLine"
+    {
+        color3f[] primvars:displayColor = [(1, 1, 1)]
+        double size = 1
+        double3 xformOp:scale = (2.74, 0.02, 0.001)
+        double3 xformOp:translate = (0, -0.7625, 0.7605)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+    }
+
+    def Cube "FrontEdgeLine"
+    {
+        color3f[] primvars:displayColor = [(1, 1, 1)]
+        double size = 1
+        double3 xformOp:scale = (0.02, 1.525, 0.001)
+        double3 xformOp:translate = (1.37, 0, 0.7605)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+    }
+
+    def Cube "BackEdgeLine"
+    {
+        color3f[] primvars:displayColor = [(1, 1, 1)]
+        double size = 1
+        double3 xformOp:scale = (0.02, 1.525, 0.001)
+        double3 xformOp:translate = (-1.37, 0, 0.7605)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+    }
+
+    def Cube "LegFrontLeft" (
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
+    )
+    {
+        bool physics:collisionEnabled = 1
+        color3f[] primvars:displayColor = [(0.2, 0.2, 0.2)] (
+            interpolation = "constant"
+        )
+        double size = 1
+        double3 xformOp:scale = (0.05, 0.05, 0.71)
+        double3 xformOp:translate = (-1.25, -0.65, 0.355)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+    }
+
+    def Cube "LegFrontRight" (
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
+    )
+    {
+        bool physics:collisionEnabled = 1
+        color3f[] primvars:displayColor = [(0.2, 0.2, 0.2)] (
+            interpolation = "constant"
+        )
+        double size = 1
+        double3 xformOp:scale = (0.05, 0.05, 0.71)
+        double3 xformOp:translate = (1.25, -0.65, 0.355)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+    }
+
+    def Cube "LegBackLeft" (
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
+    )
+    {
+        bool physics:collisionEnabled = 1
+        color3f[] primvars:displayColor = [(0.2, 0.2, 0.2)] (
+            interpolation = "constant"
+        )
+        double size = 1
+        double3 xformOp:scale = (0.05, 0.05, 0.71)
+        double3 xformOp:translate = (-1.25, 0.65, 0.355)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+    }
+
+    def Cube "LegBackRight" (
+        prepend apiSchemas = ["PhysicsCollisionAPI"]
+    )
+    {
+        bool physics:collisionEnabled = 1
+        color3f[] primvars:displayColor = [(0.2, 0.2, 0.2)] (
+            interpolation = "constant"
+        )
+        double size = 1
+        double3 xformOp:scale = (0.05, 0.05, 0.71)
+        double3 xformOp:translate = (1.25, 0.65, 0.355)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+    }
+
+    def Material "TableMaterial" (
+        prepend apiSchemas = ["PhysicsMaterialAPI"]
+    )
+    {
+        float physics:dynamicFriction = 0.35
+        float physics:restitution = 0.92
+        token physics:restitutionCombineMode = "max"
+        float physics:staticFriction = 0.4
+    }
+
+    def Material "LabelMaterial"
+    {
+        token outputs:surface.connect = </TableTennisTable/LabelMaterial/PreviewSurface.outputs:surface>
+
+        def Shader "PreviewSurface"
+        {
+            uniform token info:id = "UsdPreviewSurface"
+            color3f inputs:diffuseColor.connect = </TableTennisTable/LabelMaterial/LabelTexture.outputs:rgb>
+            float inputs:metallic = 0
+            float inputs:roughness = 0.6
+            token outputs:surface
+        }
+
+        def Shader "LabelTexture"
+        {
+            uniform token info:id = "UsdUVTexture"
+            asset inputs:file = @./woan_robotics_label.png@
+            float2 inputs:st.connect = </TableTennisTable/LabelMaterial/LabelPrimvar.outputs:result>
+            token outputs:rgb
+        }
+
+        def Shader "LabelPrimvar"
+        {
+            uniform token info:id = "UsdPrimvarReader_float2"
+            token inputs:varname = "st"
+            float2 outputs:result
+        }
+    }
+}
+

@@ -1,0 +1,53 @@
+#usda 1.0
+(
+    defaultPrim = "PingPongBall"
+    doc = """国际标准乒乓球 - 符合ITTF规范
+    直径: 40mm (±0.5mm)
+    质量: 2.7g (±0.03g)
+    恢复系数: 0.905 (从30.5cm落下反弹至24-26cm)
+    材质: ABS塑料
+    颜色: 橙色(ITTF标准颜色)
+    """
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+def Xform "PingPongBall"
+{
+    def Sphere "BallGeom" (
+        delete apiSchemas = ["PhysicsMaterialAPI"]
+        prepend apiSchemas = ["PhysicsCollisionAPI", "PhysicsMassAPI", "PhysicsRigidBodyAPI", "PhysicsMaterialAPI"]
+    )
+    {
+        rel material:binding = </PingPongBall/PhysicsMaterial>
+        float physics:angularDamping = 0
+        float3 physics:centerOfMass = (0, 0, 0)
+        bool physics:collisionEnabled = 1
+        float physics:dynamicFriction = 0.3
+        float physics:linearDamping = 0
+        float physics:mass = 0.0027
+        uniform token physics:physicsMaterialPurpose = "default"
+        float physics:restitution = 0.9
+        token physics:restitutionCombineMode = "max"
+        bool physics:rigidBodyEnabled = 1
+        float physics:staticFriction = 0.3
+        float physxCollision:contactOffset = 0.002
+        float physxCollision:restOffset = 0
+        bool physxRigidBody:enableCCD = 1
+        int physxRigidBody:solverPositionIterationCount = 16
+        int physxRigidBody:solverVelocityIterationCount = 4
+        color3f[] primvars:displayColor = [(1, 0.45, 0)]
+        double radius = 0.02
+    }
+
+    def Material "PhysicsMaterial" (
+        prepend apiSchemas = ["PhysicsMaterialAPI"]
+    )
+    {
+        float physics:dynamicFriction = 0.25
+        float physics:restitution = 0.905
+        token physics:restitutionCombineMode = "max"
+        float physics:staticFriction = 0.35
+    }
+}
+

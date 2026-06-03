@@ -34,6 +34,9 @@ TABLE_USD_PATH = os.path.join(
     "data", "robots", "a1", "table_tennis_table.usd"
 )
 
+# 乒乓球资源: 与球桌同目录, 用相对路径避免硬编码绝对路径
+BALL_USD_PATH = os.path.join(os.path.dirname(TABLE_USD_PATH), "ping_pong_ball.usd")
+
 # 分阶段域随机化开关 (累积式), 由环境变量 DR_STAGE 控制:
 #   0 = 确定性基线 (无随机化)   1 = + 发球范围   2 = + 动作延迟   3 = + PD/力矩/观测噪声/观测延迟
 DR_STAGE = int(os.environ.get("DR_STAGE", "0"))
@@ -150,7 +153,7 @@ class X1TableTennisSceneCfg(InteractiveSceneCfg):
     ball = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Ball",
         spawn=sim_utils.UsdFileCfg(
-            usd_path="/root/x1/ping_pong_ball.usd",
+            usd_path=BALL_USD_PATH,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 kinematic_enabled=False,
                 disable_gravity=False,

@@ -12,15 +12,23 @@ This project provides a set of reinforcement learning environments for Unitree r
 
 Currently supports Unitree **Go2**, **H1** and **G1-29dof** robots.
 
-<div align="center">
-
-| <div align="center"> Isaac Lab </div> | <div align="center">  Mujoco </div> |  <div align="center"> Physical </div> |
-|--- | --- | --- |
-| [<img src="https://oss-global-cdn.unitree.com/static/d879adac250648c587d3681e90658b49_480x397.gif" width="240px">](g1_sim.gif) | [<img src="https://oss-global-cdn.unitree.com/static/3c88e045ab124c3ab9c761a99cb5e71f_480x397.gif" width="240px">](g1_mujoco.gif) | [<img src="https://oss-global-cdn.unitree.com/static/6c17c6cf52ec4e26bbfab1fbf591adb2_480x270.gif" width="240px">](g1_real.gif) |
-
-</div>
-
 ## Installation
+
+### Requirements
+
+运行本项目前请确保满足以下版本要求（Isaac Sim 与 Isaac Lab 版本需严格匹配，否则 API 不兼容）：
+
+| Dependency | Version |
+| --- | --- |
+| Isaac Sim | 5.1.0 |
+| Isaac Lab | 2.3.0 |
+| Python | 3.11 |
+| OS | Ubuntu 20.04 / 22.04 |
+| GPU | NVIDIA RTX，建议 ≥ 8 GB 显存，驱动 ≥ 535 |
+
+详细安装方式见 [Isaac Lab 官方安装指南](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html)。
+
+### Steps
 
 - Install Isaac Lab by following the [installation guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html).
 - Install the Unitree RL IsaacLab standalone environments.
