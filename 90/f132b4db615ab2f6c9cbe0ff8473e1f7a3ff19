@@ -1,0 +1,80 @@
+worobots/a1_robot_ppo/logs/a1_deploy_20260603_121840.csv
+  ai_agent 1-23436
+worobots/a1_robot_ppo/logs/a1_deploy_20260603_151730.csv
+  ai_agent 1-7544
+worobots/a1_robot_ppo/logs/a1_deploy_20260603_152423.csv
+  ai_agent 1-22373
+worobots/a1_robot_ppo/logs/a1_deploy_20260603_122855.csv
+  ai_agent 1-7990
+worobots/a1_robot_ppo/logs/a1_deploy_20260603_161155.csv
+  ai_agent 1-32059
+worobots/a1_robot_ppo/logs/logs/a1_deploy_20260603_152423.csv
+  ai_agent 1-22373
+worobots/a1_robot_ppo/logs/logs/a1_deploy_20260603_141804.csv
+  ai_agent 1-8720
+worobots/a1_robot_ppo/logs/logs/a1_deploy_20260603_145755.csv
+  ai_agent 1-26147
+worobots/a1_robot_ppo/logs/logs/a1_deploy_20260603_122855.csv
+  ai_agent 1-7990
+worobots/a1_robot_ppo/logs/logs/a1_deploy_20260603_154303.csv
+  ai_agent 1-8638
+worobots/a1_robot_ppo/logs/logs/a1_deploy_20260603_143800.csv
+  ai_agent 1-1740
+worobots/a1_robot_ppo/logs/a1_deploy_20260603_154303.csv
+  ai_agent 1-8638
+worobots/a1_robot_ppo/logs/a1_deploy_20260603_143800.csv
+  ai_agent 1-1740
+worobots/a1_robot_ppo/logs/a1_deploy_20260603_141804.csv
+  ai_agent 1-8720
+worobots/a1_robot_ppo/logs/logs/a1_deploy_20260603_151730.csv
+  ai_agent 1-7544
+worobots/a1_robot_ppo/logs/logs/a1_deploy_20260603_145648.csv
+  ai_agent 1-1656
+worobots/a1_robot_ppo/logs/logs/a1_deploy_20260603_155457.csv
+  ai_agent 1-7587
+worobots/a1_robot_ppo/logs/a1_deploy_20260603_122716.csv
+  ai_agent 1
+worobots/a1_robot_ppo/logs/a1_deploy_20260603_145513.csv
+  ai_agent 1-4013
+worobots/a1_robot_ppo/logs/logs/a1_deploy_20260603_122739.csv
+  ai_agent 1
+worobots/a1_robot_ppo/logs/logs/a1_deploy_20260603_121840.csv
+  ai_agent 1-23436
+worobots/a1_robot_ppo/logs/logs/a1_deploy_20260603_160200.csv
+  ai_agent 1-4948
+worobots/a1_robot_ppo/logs/logs/a1_deploy_20260603_160200_ball_filter_analysis.txt
+  ai_agent 1-15
+worobots/a1_robot_ppo/logs/logs/a1_deploy_20260603_161155.csv
+  ai_agent 1-32059
+worobots/a1_robot_ppo/logs/a1_deploy_20260603_122739.csv
+  ai_agent 1
+worobots/a1_robot_ppo/logs/a1_deploy_20260603_145755.csv
+  ai_agent 1-26147
+worobots/a1_robot_ppo/logs/a1_deploy_20260603_160200.csv
+  ai_agent 1-4948
+worobots/a1_robot_ppo/logs/logs/a1_deploy_20260603_141737.csv
+  ai_agent 1
+worobots/a1_robot_ppo/logs/a1_deploy_20260603_145648.csv
+  ai_agent 1-1656
+worobots/a1_robot_ppo/logs/logs/a1_deploy_20260603_145513.csv
+  ai_agent 1-4013
+worobots/a1_robot_ppo/logs/a1_deploy_20260603_155457.csv
+  ai_agent 1-7587
+worobots/a1_robot_ppo/logs/a1_deploy_20260603_160200_ball_filter_analysis.txt
+  ai_agent 1-15
+worobots/a1_robot_ppo/logs/logs/a1_deploy_20260603_122716.csv
+  ai_agent 1
+worobots/a1_robot_ppo/logs/a1_deploy_20260603_141737.csv
+  ai_agent 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "90f132b4db615ab2f6c9cbe0ff8473e1f7a3ff19",
+  "prompts": {},
+  "humans": {
+    "h_e20ef4bd1fe315": {
+      "author": "cenxinhua <cenxinhua@onerobot.com>"
+    }
+  }
+}
