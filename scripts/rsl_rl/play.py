@@ -46,6 +46,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import gymnasium as gym
+import numpy as np
 import os
 import time
 import torch
@@ -56,7 +57,6 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
-from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, export_policy_as_jit, export_policy_as_onnx
 from isaaclab_tasks.utils import get_checkpoint_path
 
@@ -81,10 +81,8 @@ def main():
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Loading experiment from directory: {log_root_path}")
     if args_cli.use_pretrained_checkpoint:
-        resume_path = get_published_pretrained_checkpoint("rsl_rl", args_cli.task)
-        if not resume_path:
-            print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
-            return
+        print("[INFO] Pretrained checkpoint not supported in this version.")
+        return
     elif args_cli.checkpoint:
         resume_path = retrieve_file_path(args_cli.checkpoint)
     else:
@@ -153,6 +151,12 @@ def main():
 
     dt = env.unwrapped.step_dt
 
+    # joint position logging
+    joint_log = []
+    robot = env.unwrapped.scene["robot"]
+    joint_names = robot.joint_names
+    print(f"[INFO] Robot joint names ({len(joint_names)}): {joint_names}")
+
     # reset environment
     obs = env.get_observations()
     if version("rsl-rl-lib").startswith("2.3."):
@@ -167,6 +171,11 @@ def main():
             actions = policy(obs)
             # env stepping
             obs, _, _, _ = env.step(actions)
+
+            # log joint positions (right arm)
+            joint_pos = robot.data.joint_pos[0].cpu().numpy().copy()
+            joint_log.append(joint_pos)
+
         if args_cli.video:
             timestep += 1
             # Exit the play loop after recording one video
@@ -177,6 +186,28 @@ def main():
         sleep_time = dt - (time.time() - start_time)
         if args_cli.real_time and sleep_time > 0:
             time.sleep(sleep_time)
+
+    # save joint log
+    if joint_log:
+        joint_log_arr = np.array(joint_log)
+        save_path = os.path.join(log_dir, "play_joint_pos.npz")
+        np.savez(save_path, joint_pos=joint_log_arr, joint_names=joint_names)
+        print(f"[INFO] Saved joint positions: {save_path}  shape={joint_log_arr.shape}")
+        print(f"[INFO] Joint names: {joint_names}")
+
+        # also save as human-readable txt
+        txt_path = os.path.join(log_dir, "play_joint_pos.txt")
+        with open(txt_path, "w") as f:
+            f.write("# Joint position log\n")
+            f.write(f"# Columns: {joint_names}\n")
+            f.write(f"# Shape: {joint_log_arr.shape} (steps x joints)\n")
+            f.write(f"# dt = {dt:.4f}s\n\n")
+            header = "step\t" + "\t".join(joint_names)
+            f.write(header + "\n")
+            for i, pos in enumerate(joint_log_arr):
+                line = f"{i}\t" + "\t".join(f"{v:.4f}" for v in pos)
+                f.write(line + "\n")
+        print(f"[INFO] Saved joint positions (txt): {txt_path}")
 
     # close the simulator
     env.close()

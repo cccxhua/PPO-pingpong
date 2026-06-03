@@ -21,6 +21,8 @@ def format_value(x):
 
 def export_deploy_cfg(env: ManagerBasedRLEnv, log_dir):
     asset: Articulation = env.scene["robot"]
+    if not hasattr(env.cfg.scene.robot, "joint_sdk_names"):
+        return
     joint_sdk_names = env.cfg.scene.robot.joint_sdk_names
     joint_ids_map, _ = resolve_matching_names(asset.data.joint_names, joint_sdk_names, preserve_order=True)
 
@@ -53,12 +55,14 @@ def export_deploy_cfg(env: ManagerBasedRLEnv, log_dir):
     cfg["actions"] = {}
     for action_name, action_term in action_terms:
         term_cfg = action_term.cfg.copy()
-        if isinstance(term_cfg.scale, float):
-            term_cfg.scale = [term_cfg.scale for _ in range(action_term.action_dim)]
-        else:  # dict
-            term_cfg.scale = action_term._scale[0].detach().cpu().numpy().tolist()
 
-        if term_cfg.clip is not None:
+        if hasattr(term_cfg, "scale"):
+            if isinstance(term_cfg.scale, float):
+                term_cfg.scale = [term_cfg.scale for _ in range(action_term.action_dim)]
+            elif isinstance(term_cfg.scale, dict):
+                term_cfg.scale = action_term._scale[0].detach().cpu().numpy().tolist()
+
+        if hasattr(term_cfg, "clip") and term_cfg.clip is not None:
             term_cfg.clip = action_term._clip[0].detach().cpu().numpy().tolist()
 
         if action_name in ["JointPositionAction", "JointVelocityAction"]:
@@ -71,13 +75,14 @@ def export_deploy_cfg(env: ManagerBasedRLEnv, log_dir):
         term_cfg = term_cfg.to_dict()
 
         for _ in ["class_type", "asset_name", "debug_vis", "preserve_order", "use_default_offset"]:
-            del term_cfg[_]
+            term_cfg.pop(_, None)
         cfg["actions"][action_name] = term_cfg
 
-        if action_term._joint_ids == slice(None):
-            cfg["actions"][action_name]["joint_ids"] = None
-        else:
-            cfg["actions"][action_name]["joint_ids"] = action_term._joint_ids
+        if hasattr(action_term, "_joint_ids"):
+            if action_term._joint_ids == slice(None):
+                cfg["actions"][action_name]["joint_ids"] = None
+            else:
+                cfg["actions"][action_name]["joint_ids"] = action_term._joint_ids
 
     # --- observations ---
     obs_names = env.observation_manager.active_terms["policy"]
@@ -103,7 +108,7 @@ def export_deploy_cfg(env: ManagerBasedRLEnv, log_dir):
         # clean cfg
         term_cfg = term_cfg.to_dict()
         for _ in ["func", "modifiers", "noise", "flatten_history_dim"]:
-            del term_cfg[_]
+            term_cfg.pop(_, None)
         cfg["observations"][obs_name] = term_cfg
 
     # --- save config file ---
