@@ -91,15 +91,15 @@ MIDDLE_BALL = {
 }
 
 # 以 MIDDLE_BALL 为中心向外随机 (第 1 步发球随机化):
-# 纵深(x/vx)、高度(z/vz) 小幅, 横向(y/vy) 渐进放大 —— 当前档 (y±0.08, vy±0.20),
+# 中幅扩大档: 纵深 x±0.15、vx 2.6~3.4, 高度 z 0.90~1.30、vz 渐进, 横向 y±0.25 / vy±0.35.
 # 配合修正后的 ball_landed_on_own_table 终止判定 (不再误杀回球过网低空帧)。
 # ROBOT_SIDE=-1: x 在 +X 出生, vx 朝 -X 飞向 A1。
 MIDDLE_DR_BALL = {
-    "x_range":  (min(-0.40 * ROBOT_SIDE, -0.30 * ROBOT_SIDE), max(-0.40 * ROBOT_SIDE, -0.30 * ROBOT_SIDE)),
-    "y_range":  (-0.12, 0.12),
-    "z_range":  (1.00, 1.20),
-    "vx_range": (min(2.8 * ROBOT_SIDE, 3.2 * ROBOT_SIDE), max(2.8 * ROBOT_SIDE, 3.2 * ROBOT_SIDE)),
-    "vy_range": (-0.20, 0.20),
+    "x_range":  (min(-0.50 * ROBOT_SIDE, -0.20 * ROBOT_SIDE), max(-0.50 * ROBOT_SIDE, -0.20 * ROBOT_SIDE)),
+    "y_range":  (-0.25, 0.25),
+    "z_range":  (0.90, 1.30),
+    "vx_range": (min(2.6 * ROBOT_SIDE, 3.4 * ROBOT_SIDE), max(2.6 * ROBOT_SIDE, 3.4 * ROBOT_SIDE)),
+    "vy_range": (-0.35, 0.35),
     "vz_range": (0.10, 0.30),
 }
 
@@ -481,7 +481,7 @@ class RewardsCfg:
     )
 
     # -- 正则化
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.15)
     joint_acc = RewTerm(
         func=mdp.joint_acc_l2,
         weight=-1.0e-6,
@@ -605,7 +605,7 @@ class RobotEnvCfg(ManagerBasedRLEnvCfg):
     events: EventCfg = EventCfg()
 
     obs_delay_min: int = 0
-    obs_delay_max: int = 3
+    obs_delay_max: int = 1
 
     def __post_init__(self):
         self.decimation = 4
@@ -624,12 +624,12 @@ class RobotEnvCfg(ManagerBasedRLEnvCfg):
         if DR_STAGE >= 1:
             self.events.reset_ball.params.update(MIDDLE_DR_BALL)
             self.events.relaunch_ball.params.update(MIDDLE_DR_BALL)
-        # 第 2 步: 动作延迟 (max=2 ≈ 40ms)
-        self.actions.right_arm.action_delay_steps_max = 2 if DR_STAGE >= 2 else 0
-        # 第 3 步: PD 增益 / 力矩 / 观测噪声 / 观测延迟
+        # 第 2 步: 动作延迟 (min=0,max=1 → 0~20ms, 均值 10ms ≈ 真实延迟)
+        self.actions.right_arm.action_delay_steps_max = 1 if DR_STAGE >= 2 else 0
+        # 第 3 步: PD 增益 / 力矩 / 观测噪声 / 观测延迟 (obs_delay min=0,max=1 → 均值 10ms)
         if DR_STAGE >= 3:
             self.observations.policy.enable_corruption = True
-            self.obs_delay_max = 3
+            self.obs_delay_max = 1
         else:
             self.events.randomize_gains = None
             self.events.randomize_effort = None

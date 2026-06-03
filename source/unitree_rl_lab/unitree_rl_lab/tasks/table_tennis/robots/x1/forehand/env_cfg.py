@@ -455,6 +455,11 @@ class RewardsCfg:
         weight=-1.0e-8,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=RIGHT_ARM_JOINT_NAMES)},
     )
+    joint_torque = RewTerm(
+        func=mdp.joint_torques_l2,
+        weight=-1.0e-5,  # 起步值, 抑制过大力矩利于 sim2real; 若挥拍速度被压制可再调小
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=RIGHT_ARM_JOINT_NAMES)},
+    )
     joint_limit = RewTerm(
         func=mdp.joint_pos_limits,
         weight=-1.0,
