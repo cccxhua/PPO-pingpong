@@ -1,4 +1,4 @@
-# Unitree RL Lab
+# Unitree RL Lab — A1 Table Tennis (Forehand)
 
 [![IsaacSim](https://img.shields.io/badge/IsaacSim-5.1.0-silver.svg)](https://docs.omniverse.nvidia.com/isaacsim/latest/overview.html)
 [![Isaac Lab](https://img.shields.io/badge/IsaacLab-2.3.0-silver)](https://isaac-sim.github.io/IsaacLab)
@@ -6,17 +6,36 @@
 [![Discord](https://img.shields.io/badge/-Discord-5865F2?style=flat&logo=Discord&logoColor=white)](https://discord.gg/ZwcVwxv5rq)
 
 
+<p align="center">
+  <a href="doc/a1_tabletennis_cover.mp4">
+    <img src="doc/a1_hit_1.gif" alt="A1 forehand hit #1" width="48%">
+    <img src="doc/a1_hit_2.gif" alt="A1 forehand hit #2" width="48%">
+  </a>
+</p>
+
+<p align="center"><sub>点击图片查看完整视频</sub></p>
+
+
 ## Overview
 
-This project provides a set of reinforcement learning environments for Unitree robots, built on top of [IsaacLab](https://github.com/isaac-sim/IsaacLab).
+本项目使用 **A1 七自由度机械臂 + 球拍** 做乒乓球反手击球的强化学习。
 
-Currently supports Unitree **Go2**, **H1** and **G1-29dof** robots.
+- 离线 npz 参考挥拍轨迹（关键帧 + 样条插值）。
+- PPO 在参考动作上叠加 residual + 相位快慢，目标把球击过网、落到对方台面。
+- 仅右臂 7 DoF 受控：`joint_yb_1 … joint_yb_7`；正则化（torque/acc/limit/action_rate）只作用右臂。
+- 球资源：`data/robots/a1/{table_tennis_table.usd, ping_pong_ball.usd}`。
+
+参考动作 npz 与生成脚本：
+[source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/robots/a1/forehand/](source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/robots/a1/forehand/)。
+
 
 ## Installation
 
-### Requirements
+> ⚠️ **关于命名**：本项目里的 **"A1"** 指 7-DoF 协作臂 + 球拍（[data/robots/a1/a1.usd](source/unitree_rl_lab/data/robots/a1/a1.usd)），**不是** Unitree 商业产品 A1（四足）。
+> **"X1"** 指 EE + 升降柱（[data/robots/x1/ee_with_lift.usd](source/unitree_rl_lab/data/robots/x1/ee_with_lift.usd)）。
+> **乒乓球任务的所有 USD（机器人/球桌/球）已打包在仓库内**，不依赖外部 `UNITREE_MODEL_DIR`。
 
-运行本项目前请确保满足以下版本要求（Isaac Sim 与 Isaac Lab 版本需严格匹配，否则 API 不兼容）：
+### Requirements
 
 | Dependency | Version |
 | --- | --- |
@@ -26,133 +45,139 @@ Currently supports Unitree **Go2**, **H1** and **G1-29dof** robots.
 | OS | Ubuntu 20.04 / 22.04 |
 | GPU | NVIDIA RTX，建议 ≥ 8 GB 显存，驱动 ≥ 535 |
 
-详细安装方式见 [Isaac Lab 官方安装指南](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html)。
+详细安装见 [Isaac Lab 官方安装指南](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html)。
+Isaac Sim 与 Isaac Lab 版本须严格匹配，否则 API 不兼容。
 
 ### Steps
 
-- Install Isaac Lab by following the [installation guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html).
-- Install the Unitree RL IsaacLab standalone environments.
+1. **安装 Isaac Lab**（按官方指南，conda 环境名按你本地实际，本仓库默认 `isaaclab`）。
 
-  - Clone or copy this repository separately from the Isaac Lab installation (i.e. outside the `IsaacLab` directory):
+2. **Clone 本仓库**（与 IsaacLab 目录平级，不要放在 IsaacLab 内部）：
 
-    ```bash
-    git clone https://github.com/unitreerobotics/unitree_rl_lab.git
-    ```
-  - Use a python interpreter that has Isaac Lab installed, install the library in editable mode using:
+   ```bash
+   git clone https://github.com/cccxhua/PPO-pingpong.git unitree_rl_lab
+   cd unitree_rl_lab
+   ```
 
-    ```bash
-    conda activate env_isaaclab
-    ./unitree_rl_lab.sh -i
-    # restart your shell to activate the environment changes.
-    ```
-- Download unitree robot description files
+3. **editable 模式安装本项目**：
 
-  *Method 1: Using USD Files*
-  - Download unitree usd files from [unitree_model](https://huggingface.co/datasets/unitreerobotics/unitree_model/tree/main), keeping folder structure
-    ```bash
-    git clone https://huggingface.co/datasets/unitreerobotics/unitree_model
-    ```
-  - Config `UNITREE_MODEL_DIR` in `source/unitree_rl_lab/unitree_rl_lab/assets/robots/unitree.py`.
+   ```bash
+   conda activate isaaclab     # 你本地的 conda 环境名 (上游 README 默认 env_isaaclab)
+   ./unitree_rl_lab.sh -i      # 内部做: git lfs install + pip install -e + 写 conda activate.d + argcomplete
+   # 重启 shell 让环境变更生效
+   ```
 
-    ```bash
-    UNITREE_MODEL_DIR = "</home/user/projects/unitree_usd>"
-    ```
+4. **验证 `A1-TableTennis` 已注册**：
 
-  *Method 2: Using URDF Files [Recommended]* Only for Isaacsim >= 5.0
-  -  Download unitree robot urdf files from [unitree_ros](https://github.com/unitreerobotics/unitree_ros)
-      ```
-      git clone https://github.com/unitreerobotics/unitree_ros.git
-      ```
-  - Config `UNITREE_ROS_DIR` in `source/unitree_rl_lab/unitree_rl_lab/assets/robots/unitree.py`.
-    ```bash
-    UNITREE_ROS_DIR = "</home/user/projects/unitree_ros/unitree_ros>"
-    ```
-  - [Optional]: change *robot_cfg.spawn* if you want to use urdf files
+   ```bash
+   ./unitree_rl_lab.sh -l   # 比 isaaclab 自带列出更快
+   # 或者
+   /workspace/isaaclab/_isaac_sim/python.sh scripts/list_envs.py
+   ```
 
 
+## Workflow
 
-- Verify that the environments are correctly installed by:
+> 所有命令在 `cd /root/unitree_rl_lab` 下运行。
+> 如果是在阿里云上训练记得带 `--headless`。
 
-  - Listing the available tasks:
-
-    ```bash
-    ./unitree_rl_lab.sh -l # This is a faster version than isaaclab
-    ```
-  - Running a task:
-
-    ```bash
-    ./unitree_rl_lab.sh -t --task Unitree-G1-29dof-Velocity # support for autocomplete task-name
-    # same as
-    python scripts/rsl_rl/train.py --headless --task Unitree-G1-29dof-Velocity
-    ```
-  - Inference with a trained agent:
-
-    ```bash
-    ./unitree_rl_lab.sh -p --task Unitree-G1-29dof-Velocity # support for autocomplete task-name
-    # same as
-    python scripts/rsl_rl/play.py --task Unitree-G1-29dof-Velocity
-    ```
-
-## Deploy
-
-After the model training is completed, we need to perform sim2sim on the trained strategy in Mujoco to test the performance of the model.
-Then deploy sim2real.
-
-### Setup
+### 1. Train（PPO）
 
 ```bash
-# Install dependencies
-sudo apt install -y libyaml-cpp-dev libboost-all-dev libeigen3-dev libspdlog-dev libfmt-dev
-# Install unitree_sdk2
-git clone git@github.com:unitreerobotics/unitree_sdk2.git
-cd unitree_sdk2
-mkdir build && cd build
-cmake .. -DBUILD_EXAMPLES=OFF # Install on the /usr/local directory
-sudo make install
-# Compile the robot_controller
-cd unitree_rl_lab/deploy/robots/g1_29dof # or other robots
-mkdir build && cd build
-cmake .. && make
+# 起训
+/workspace/isaaclab/_isaac_sim/python.sh scripts/rsl_rl/train.py \
+    --task A1-TableTennis --headless \
+    --num_envs 4096
+
+# 等价于：./unitree_rl_lab.sh -t --task A1-TableTennis (支持 task 名补全)
 ```
 
-### Sim2Sim
-
-Installing the [unitree_mujoco](https://github.com/unitreerobotics/unitree_mujoco?tab=readme-ov-file#installation).
-
-- Set the `robot` at `/simulate/config.yaml` to g1
-- Set `domain_id` to 0
-- Set `enable_elastic_hand` to 1
-- Set `use_joystck` to 1.
+恢复训练：
 
 ```bash
-# start simulation
-cd unitree_mujoco/simulate/build
-./unitree_mujoco
-# ./unitree_mujoco -i 0 -n eth0 -r g1 -s scene_29dof.xml # alternative
+/workspace/isaaclab/_isaac_sim/python.sh scripts/rsl_rl/train.py \
+    --task A1-TableTennis --headless \
+    --resume --load_run "2026-06-03_09-39-52" --checkpoint "model_30000.pt"
 ```
+
+常用参数：`--num_envs --max_iterations --seed --resume --load_run --checkpoint --experiment_name --run_name --logger {tensorboard,wandb}`。
+
+PPO 配置：[source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/agents/rsl_rl_ppo_cfg.py](source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/agents/rsl_rl_ppo_cfg.py) 中
+`A1TableTennisPPORunnerCfg`（lr=1e-3、value_loss_coef=1.0、epochs=5、desired_kl=0.01；`experiment_name="a1_tabletennis"`）。
+
+环境配置入口：[source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/robots/a1/forehand/env_cfg.py](source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/robots/a1/forehand/env_cfg.py)。
+
+域随机化分级（环境变量）：
 
 ```bash
-cd unitree_rl_lab/deploy/robots/g1_29dof/build
-./g1_ctrl
-# 1. press [L2 + Up] to set the robot to stand up
-# 2. Click the mujoco window, and then press 8 to make the robot feet touch the ground.
-# 3. Press [R1 + X] to run the policy.
-# 4. Click the mujoco window, and then press 9 to disable the elastic band.
+DR_STAGE=0  # 0 确定性基线; 1 +发球范围; 2 +动作延迟; 3 +PD/扭矩/观测噪声/观测延迟
+SERVE_STAGE=0  # 0 中点单点; 1 A1 50% 路径; 2 A2 真人 5/95%; 3/4 B 路径(发球出生点后移)
 ```
 
-### Sim2Real
-
-You can use this program to control the robot directly, but make sure the on-borad control program has been closed.
+### 2. Play（回放训练得到的策略）
 
 ```bash
-./g1_ctrl --network eth0 # eth0 is the network interface name.
+/workspace/isaaclab/_isaac_sim/python.sh scripts/rsl_rl/play.py \
+    --task A1-TableTennis --headless \
+    --load_run "2026-06-03_09-39-52" --checkpoint "model_30000.pt" \
+    --num_envs 1 --video --video_length 400
+
+# 等价于：./unitree_rl_lab.sh -p --task A1-TableTennis
 ```
+
+输出：
+
+- `logs/rsl_rl/a1_tabletennis/<run>/videos/play/rl-video-step-0.mp4`
+- `logs/rsl_rl/a1_tabletennis/<run>/play_joint_pos.{npz,txt}` —— 用于离线对比关节轨迹。
+
+### 3. Ref Play（参考动作诊断，绕过策略）
+
+短任务，直接看 npz 参考挥拍本身能不能把球击过去：
+
+```bash
+/workspace/isaaclab/_isaac_sim/python.sh scripts/rsl_rl/play_pure_ref.py \
+    --task A1-TableTennis --headless \
+    --video --video_length 500 \
+    --npz source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/robots/a1/forehand/forehand_middle_a1_whip.npz \
+    --ball_preset middle --arrive_time 0.51 --hit_phase 0.54 \
+    --output_dir logs/pure_ref/a1_middle_diag
+```
+
+参数说明：
+
+| 参数 | 含义 |
+|------|------|
+| `--npz` | 自定义参考动作 npz 路径 |
+| `--ball_preset` | `middle` / `left` / `right` / `high` |
+| `--arrive_time` | 覆盖球到达时间估计（对齐 `CommandsCfg.ball_arrive_time_est`） |
+| `--hit_phase` | 覆盖击球时相（对齐 `CommandsCfg.hit_phase`） |
+| `--output_dir` | **务必使用新路径**，避免覆盖已有诊断 |
+
+可用 npz（[robots/a1/forehand/](source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/robots/a1/forehand/)）：
+
+- `forehand_middle_a1_whip.npz`（当前 motion_files 启用）
+- `forehand_middle_a1.npz` / `forehand_middle_a1_v2.npz` / `forehand_middle_a1_csv.npz`
+- `forehand_middle_a1_whip_flat.npz` / `forehand_middle_a1_whip_flat2.npz`
+- `forehand_left_a1.npz` / `forehand_right_a1.npz` / `forehand_right_v52_a1.npz`
+- 探针：`probe_a1.npz` / `probe_a1_retract.npz` / `probe_a1_shoulder.npz` / `probe_a1_sustained.npz` / `probe_a1_wristface.npz`
+
+诊断输出（`--output_dir`）：
+
+| 文件 | 含义 |
+|------|------|
+| `rl-video-step-0.mp4` | 回放视频 |
+| `torques.txt` | 7 关节扭矩随时间——查是否饱和到 effort_limit |
+| `joints.txt` | 关节角实际 vs 目标——查跟踪误差 |
+| `paddle_traj.txt` | 球拍位置 + 本地坐标三轴——查拍面朝向 |
+| `ball_traj.txt` | 球 xyz 轨迹——查落点 / 过网 |
+| 控制台 | 清台率、直接清台率等接触统计 |
+
+参考动作版本规范：右路等迭代版本用 `_vNN`（v50→v52→…）递增，**新版本另存新文件，绝不覆盖旧 npz**。
+
 
 ## Acknowledgements
 
-This repository is built upon the support and contributions of the following open-source projects. Special thanks to:
-
-- [IsaacLab](https://github.com/isaac-sim/IsaacLab): The foundation for training and running codes.
-- [mujoco](https://github.com/google-deepmind/mujoco.git): Providing powerful simulation functionalities.
-- [robot_lab](https://github.com/fan-ziqi/robot_lab): Referenced for project structure and parts of the implementation.
-- [whole_body_tracking](https://github.com/HybridRobotics/whole_body_tracking): Versatile humanoid control framework for motion tracking.
+- [IsaacLab](https://github.com/isaac-sim/IsaacLab) — 训练 / 运行框架基础。
+- [mujoco](https://github.com/google-deepmind/mujoco.git) — sim2sim 验证仿真。
+- [robot_lab](https://github.com/fan-ziqi/robot_lab) — 项目结构与部分实现参考。
+- [whole_body_tracking](https://github.com/HybridRobotics/whole_body_tracking) — 通用人形动作跟踪框架参考。
