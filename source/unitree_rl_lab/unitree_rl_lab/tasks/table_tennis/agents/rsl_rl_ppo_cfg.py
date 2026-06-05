@@ -34,7 +34,7 @@ class TableTennisPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 @configclass
 class A1TableTennisPPORunnerCfg(TableTennisPPORunnerCfg):
-    """A1 乒乓球 (模仿为主) PPO 配置: lr=1e-3, value_loss_coef=1.0, epochs=5, desired_kl=0.01."""
+    """A1 乒乓球 (模仿为主) PPO 配置: lr=3e-4, value_loss_coef=1.0, epochs=5, desired_kl=0.01."""
 
     experiment_name = "a1_tabletennis"
     algorithm = RslRlPpoAlgorithmCfg(
@@ -44,7 +44,7 @@ class A1TableTennisPPORunnerCfg(TableTennisPPORunnerCfg):
         entropy_coef=0.005,
         num_learning_epochs=5,
         num_mini_batches=4,
-        learning_rate=1.0e-3,
+        learning_rate=3.0e-4,
         schedule="adaptive",
         gamma=0.99,
         lam=0.95,

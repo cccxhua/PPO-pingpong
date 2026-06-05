@@ -30,6 +30,18 @@ parser.add_argument(
     help="Use the pre-trained checkpoint from Nucleus.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
+parser.add_argument(
+    "--residual_scale",
+    type=float,
+    default=None,
+    help="Temporarily override actions.right_arm.residual_scale at play time (e.g. 0.05 to match an old checkpoint trained at scale=0.05).",
+)
+parser.add_argument(
+    "--safe_serve",
+    action="store_true",
+    default=False,
+    help="At play time, narrow the serve ranges to a friendlier center subset (drops edge/fast/dropping balls). Useful for demo videos where you want to showcase the policy's confident hits, not the OOD edges.",
+)
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -74,6 +86,70 @@ def main():
         use_fabric=not args_cli.disable_fabric,
         entry_point_key="play_env_cfg_entry_point",
     )
+    # Optional: override residual_scale at play time (e.g. play an old checkpoint
+    # trained with scale=0.05 after the env file has moved on to 0.15).
+    if args_cli.residual_scale is not None:
+        right_arm_cfg = getattr(env_cfg.actions, "right_arm", None)
+        if right_arm_cfg is None or not hasattr(right_arm_cfg, "residual_scale"):
+            print("[WARN] --residual_scale ignored: env_cfg.actions.right_arm.residual_scale not found.")
+        else:
+            old = right_arm_cfg.residual_scale
+            new = [args_cli.residual_scale] * 7
+            right_arm_cfg.residual_scale = new
+            print(f"[OVERRIDE] residual_scale: {old} -> {new}")
+
+    # --safe_serve: keep the central / slower subset of the current serve preset.
+    # Drops edge balls (large |y|, very low/high z), fast balls (large |vx|), and
+    # downward serves (vz < 0). Same friendly subset is applied to both initial
+    # reset_ball and the relaunch_ball event.
+    if args_cli.safe_serve:
+        SAFE_FRAC_Y  = 0.5   # keep central 50% of y range
+        SAFE_FRAC_Z  = 0.4   # keep central 40% of z range (drops too-low / too-high)
+        SAFE_FRAC_VY = 0.5
+        SAFE_VX_KEEP = "slow"   # keep the slow half of vx (smaller |vx|)
+        SAFE_VZ_MIN  = 0.0      # require non-negative vz (drop dropping balls)
+
+        def _shrink_sym(rng, frac):
+            lo, hi = float(rng[0]), float(rng[1])
+            mid = 0.5 * (lo + hi)
+            half = 0.5 * (hi - lo) * frac
+            return (mid - half, mid + half)
+
+        def _vx_slow_half(rng):
+            lo, hi = float(rng[0]), float(rng[1])
+            # vx is negative when ROBOT_SIDE=-1 (ball flies toward robot at -X);
+            # "slow" = closer to 0, i.e. larger value when both negative.
+            mid = 0.5 * (lo + hi)
+            if abs(hi) < abs(lo):     # hi closer to 0 → slow side is [mid, hi]
+                return (mid, hi)
+            else:
+                return (lo, mid)
+
+        def _vz_drop_negative(rng):
+            lo, hi = float(rng[0]), float(rng[1])
+            return (max(lo, SAFE_VZ_MIN), max(hi, SAFE_VZ_MIN))
+
+        def _apply(params):
+            new_params = dict(params)
+            if "y_range" in params:  new_params["y_range"]  = _shrink_sym(params["y_range"], SAFE_FRAC_Y)
+            if "z_range" in params:  new_params["z_range"]  = _shrink_sym(params["z_range"], SAFE_FRAC_Z)
+            if "vy_range" in params: new_params["vy_range"] = _shrink_sym(params["vy_range"], SAFE_FRAC_VY)
+            if "vx_range" in params: new_params["vx_range"] = _vx_slow_half(params["vx_range"])
+            if "vz_range" in params: new_params["vz_range"] = _vz_drop_negative(params["vz_range"])
+            return new_params
+
+        for ev_name in ("reset_ball", "relaunch_ball"):
+            ev = getattr(env_cfg.events, ev_name, None)
+            if ev is None or ev.params is None:
+                continue
+            old_params = {k: ev.params.get(k) for k in ("x_range","y_range","z_range","vx_range","vy_range","vz_range")}
+            new_params = _apply(ev.params)
+            ev.params = new_params
+            print(f"[SAFE_SERVE] {ev_name}:")
+            for k in ("y_range","z_range","vx_range","vy_range","vz_range"):
+                if k in old_params and old_params[k] is not None:
+                    print(f"    {k:9s} {old_params[k]} -> {new_params[k]}")
+
     agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(args_cli.task, args_cli)
 
     # specify directory for logging experiments
@@ -153,9 +229,24 @@ def main():
 
     # joint position logging
     joint_log = []
+    reset_steps = []        # frame indices where env.step triggered a reset (joint pos jumps)
+    self_dist_log = []      # min distance between distal arm links and body links each frame
     robot = env.unwrapped.scene["robot"]
     joint_names = robot.joint_names
     print(f"[INFO] Robot joint names ({len(joint_names)}): {joint_names}")
+
+    # Pick distal-arm vs body link indices for self-distance check.
+    # Distal arm = yb_4..yb_7 + paddle (avoid false positives at yb_1..3 hinge-adjacent to lift column).
+    body_names = robot.body_names
+    distal_keys = ["yb_4", "yb_5", "yb_6", "yb_7", "paddle"]
+    arm_distal_idx = [i for i, n in enumerate(body_names) if any(k in n for k in distal_keys)]
+    body_idx = [i for i, n in enumerate(body_names) if "yb_" not in n and i not in arm_distal_idx]
+    SELF_DIST_THRESHOLD = 0.10   # m; below this, flag as self-collision risk
+    if arm_distal_idx and body_idx:
+        print(f"[INFO] Self-collision check: distal arm links {len(arm_distal_idx)} vs body links {len(body_idx)} "
+              f"(threshold {SELF_DIST_THRESHOLD*100:.0f} cm)")
+    else:
+        print("[WARN] Self-collision check disabled: could not partition distal-arm / body links from body_names")
 
     # reset environment
     obs = env.get_observations()
@@ -170,11 +261,30 @@ def main():
             # agent stepping
             actions = policy(obs)
             # env stepping
-            obs, _, _, _ = env.step(actions)
+            obs, _, dones, _ = env.step(actions)
 
             # log joint positions (right arm)
             joint_pos = robot.data.joint_pos[0].cpu().numpy().copy()
             joint_log.append(joint_pos)
+
+            # mark reset frame: when dones is True, the returned joint_pos is already
+            # the new-episode initial pose, so pos[k]-pos[k-1] is a teleport — flag it.
+            done_val = False
+            try:
+                done_val = bool(dones[0].item()) if hasattr(dones, "__getitem__") else bool(dones)
+            except Exception:
+                done_val = False
+            if done_val:
+                reset_steps.append(len(joint_log) - 1)
+
+            # self-collision distance: min over (distal arm × body) link pairs
+            if arm_distal_idx and body_idx:
+                body_pos_w = robot.data.body_pos_w[0].cpu().numpy()    # (N_links, 3)
+                arm_pos = body_pos_w[arm_distal_idx]                    # (n_arm, 3)
+                trunk_pos = body_pos_w[body_idx]                        # (n_body, 3)
+                diffs = arm_pos[:, None, :] - trunk_pos[None, :, :]    # (n_arm, n_body, 3)
+                dists = np.linalg.norm(diffs, axis=2)
+                self_dist_log.append(float(dists.min()))
 
         if args_cli.video:
             timestep += 1
@@ -208,6 +318,154 @@ def main():
                 line = f"{i}\t" + "\t".join(f"{v:.4f}" for v in pos)
                 f.write(line + "\n")
         print(f"[INFO] Saved joint positions (txt): {txt_path}")
+
+        # plot per-joint subplot figures for the right-arm (yb_*) joints if present:
+        # position, velocity, acceleration. Only per-joint subplots, no overlay variant.
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            from matplotlib.ticker import MaxNLocator, AutoMinorLocator
+
+            yb_idx = [i for i, n in enumerate(joint_names) if n.startswith("joint_yb_")]
+            if yb_idx:
+                yb_names = [joint_names[i] for i in yb_idx]
+                yb_pos = joint_log_arr[:, yb_idx]
+                # backward finite differences (matches typical real-robot estimation:
+                # current velocity uses pos[i] - pos[i-1]; first frame is padded)
+                yb_vel = np.zeros_like(yb_pos)
+                yb_vel[1:] = (yb_pos[1:] - yb_pos[:-1]) / dt
+                yb_vel[0] = yb_vel[1]
+                yb_acc = np.zeros_like(yb_vel)
+                yb_acc[1:] = (yb_vel[1:] - yb_vel[:-1]) / dt
+                yb_acc[0] = yb_acc[1]
+
+                # break the differences across episode resets: pos teleports at the reset
+                # frame would otherwise produce huge fake spikes that distort the y-axis.
+                # vel[reset] is invalid (cross-episode diff); acc[reset] and acc[reset+1]
+                # both depend on it, so NaN them out and let matplotlib auto-break the line.
+                for r in reset_steps:
+                    if 0 <= r < yb_vel.shape[0]:
+                        yb_vel[r] = np.nan
+                    if 0 <= r < yb_acc.shape[0]:
+                        yb_acc[r] = np.nan
+                    if 0 <= r + 1 < yb_acc.shape[0]:
+                        yb_acc[r + 1] = np.nan
+
+                t_axis = np.arange(joint_log_arr.shape[0]) * dt
+                reset_t = [r * dt for r in reset_steps if 0 <= r < joint_log_arr.shape[0]]
+                n = len(yb_idx)
+
+                # velocity limits from articulation (per joint), fall back to None on failure
+                try:
+                    vel_lim = robot.data.joint_vel_limits[0].cpu().numpy()
+                    yb_vel_lim = [float(vel_lim[joint_names.index(name)]) for name in yb_names]
+                except Exception:
+                    yb_vel_lim = [None] * n
+
+                def _plot_panel(arr, ylabel, title, fname, hlines=None, mark_resets=True):
+                    fig, axes = plt.subplots(n, 1, figsize=(11, 1.7 * n + 1), sharex=True)
+                    if n == 1:
+                        axes = [axes]
+                    for i, ax in enumerate(axes):
+                        ax.plot(t_axis, arr[:, i], lw=1.2, color=f"C{i % 10}")
+                        ax.set_ylabel(f"{yb_names[i].replace('joint_', '')}\n({ylabel})", fontsize=9)
+                        # denser ticks + minor grid so small data ranges are still readable
+                        ax.yaxis.set_major_locator(MaxNLocator(nbins=10, steps=[1, 2, 2.5, 5, 10]))
+                        ax.yaxis.set_minor_locator(AutoMinorLocator())
+                        ax.grid(True, which="major", alpha=0.30)
+                        ax.grid(True, which="minor", alpha=0.12)
+                        ax.tick_params(axis="y", labelsize=8)
+
+                        # tight asymmetric y-range strictly to data (NaN-safe).
+                        # Don't force 0 to center — data like yb_1 sitting at +1.0~+1.5
+                        # otherwise wastes half the y-axis on empty negative space.
+                        finite = arr[:, i][np.isfinite(arr[:, i])]
+                        if finite.size:
+                            vmin = float(finite.min())
+                            vmax = float(finite.max())
+                            span = max(vmax - vmin, 1e-6)
+                            pad = max(0.05, 0.15 * span)
+                            ymin, ymax = vmin - pad, vmax + pad
+                        else:
+                            ymin, ymax = -1.0, 1.0
+                        ax.set_ylim(ymin, ymax)
+                        # only draw the y=0 reference if it's inside the visible range
+                        if ymin <= 0.0 <= ymax:
+                            ax.axhline(0, color="gray", lw=0.5, ls="--")
+
+                        if hlines is not None and hlines[i] is not None:
+                            lim = float(hlines[i])
+                            drew = False
+                            if lim <= ymax:
+                                ax.axhline(lim, color="r", lw=0.6, ls=":")
+                                drew = True
+                            if -lim >= ymin:
+                                ax.axhline(-lim, color="r", lw=0.6, ls=":")
+                                drew = True
+                            if not drew:
+                                ax.text(0.99, 0.05, f"v_lim=±{lim:.0f} (off-axis)",
+                                        transform=ax.transAxes, ha="right", va="bottom",
+                                        fontsize=7, color="red", alpha=0.7)
+
+                        # mark resets at the bottom of each axes (axes-fraction y) so
+                        # markers stay visible regardless of where the data lives.
+                        if mark_resets and reset_t:
+                            trans = ax.get_xaxis_transform()  # x: data, y: axes 0..1
+                            ax.scatter(reset_t, [0.04] * len(reset_t),
+                                       marker="x", color="red", s=28, zorder=5,
+                                       transform=trans, clip_on=False,
+                                       label="reset" if i == 0 else None)
+                    if reset_t and mark_resets:
+                        axes[0].legend(loc="upper right", fontsize=8)
+                    axes[-1].set_xlabel("time (s)")
+                    fig.suptitle(title, fontsize=12)
+                    plt.tight_layout()
+                    out = os.path.join(log_dir, fname)
+                    plt.savefig(out, dpi=110)
+                    plt.close(fig)
+                    print(f"[INFO] Saved plot: {out}")
+
+                run = os.path.basename(log_dir)
+                _plot_panel(yb_pos, "rad", f"right-arm joint positions — {run}",
+                            "play_joint_pos.png")
+                _plot_panel(yb_vel, "rad/s", f"right-arm joint velocities — {run}  (red dotted = velocity_limit)",
+                            "play_joint_vel.png", hlines=yb_vel_lim)
+                _plot_panel(yb_acc, "rad/s²", f"right-arm joint accelerations — {run}",
+                            "play_joint_acc.png")
+
+            # self-collision distance plot
+            if self_dist_log:
+                d = np.array(self_dist_log)
+                t_d = np.arange(len(d)) * dt
+                fig, ax = plt.subplots(figsize=(11, 4))
+                ax.plot(t_d, d, lw=1.2, color="C0", label="min dist (distal arm vs body)")
+                ax.axhline(SELF_DIST_THRESHOLD, color="red", lw=0.8, ls="--",
+                           label=f"threshold {SELF_DIST_THRESHOLD*100:.0f} cm")
+                # shade regions where distance < threshold
+                violation = d < SELF_DIST_THRESHOLD
+                if violation.any():
+                    ax.fill_between(t_d, 0, d.max() * 1.05, where=violation,
+                                    color="red", alpha=0.15, label="self-collision risk")
+                # mark resets
+                if reset_t:
+                    for rt in reset_t:
+                        ax.axvline(rt, color="gray", lw=0.4, ls=":")
+                ax.set_xlabel("time (s)")
+                ax.set_ylabel("min link distance (m)")
+                ax.set_title(f"self-collision distance — {os.path.basename(log_dir)}")
+                ax.set_ylim(bottom=0)
+                ax.grid(alpha=0.3)
+                ax.legend(loc="lower right", fontsize=9)
+                plt.tight_layout()
+                out = os.path.join(log_dir, "play_self_distance.png")
+                plt.savefig(out, dpi=110)
+                plt.close(fig)
+                pct = 100.0 * float(violation.mean())
+                print(f"[INFO] Saved plot: {out}  (frames below {SELF_DIST_THRESHOLD*100:.0f} cm: {pct:.1f}%, "
+                      f"global min: {float(d.min())*100:.1f} cm)")
+        except Exception as e:
+            print(f"[WARN] Failed to render play_joint_*.png: {e}")
 
     # close the simulator
     env.close()

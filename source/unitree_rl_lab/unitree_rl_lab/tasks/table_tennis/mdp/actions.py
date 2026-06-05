@@ -54,6 +54,13 @@ class ReferenceResidualJointAction(ActionTerm):
             self._delay_steps = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
             self._step_counter = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
 
+        # 1st-order EMA on residual (α=0 disables). Smooths after delay so prev
+        # mirrors the value actually sent to the joint target — same dynamics
+        # the real hardware sees with no built-in LPF.
+        self._smoothing_alpha = float(cfg.action_smoothing_alpha)
+        if self._smoothing_alpha > 0.0:
+            self._prev_residual = torch.zeros(env.num_envs, self._num_joints, device=env.device)
+
     @property
     def action_dim(self) -> int:
         return self._num_joints
@@ -76,10 +83,18 @@ class ReferenceResidualJointAction(ActionTerm):
             self._action_buffer[:, 0] = actions
             # Read delayed action
             idx = self._delay_steps.unsqueeze(-1).unsqueeze(-1).expand(-1, 1, self._num_joints)
-            delayed_actions = self._action_buffer.gather(1, idx).squeeze(1)
-            self._processed_actions = command.ref_dof[:, self._ref_indices] + delayed_actions * self._scale
+            effective = self._action_buffer.gather(1, idx).squeeze(1)
         else:
-            self._processed_actions = command.ref_dof[:, self._ref_indices] + self._raw_actions * self._scale
+            effective = self._raw_actions
+
+        if self._smoothing_alpha > 0.0:
+            smoothed = self._smoothing_alpha * self._prev_residual + (1.0 - self._smoothing_alpha) * effective
+            self._prev_residual = smoothed
+            residual = smoothed
+        else:
+            residual = effective
+
+        self._processed_actions = command.ref_dof[:, self._ref_indices] + residual * self._scale
 
     def apply_actions(self):
         self._robot.set_joint_position_target(self._processed_actions, joint_ids=self._joint_ids)
@@ -93,6 +108,8 @@ class ReferenceResidualJointAction(ActionTerm):
             self._delay_steps[env_ids] = torch.randint(
                 min_delay, self._max_delay + 1, (len(env_ids),), device=self._delay_steps.device
             )
+        if self._smoothing_alpha > 0.0:
+            self._prev_residual[env_ids] = 0.0
 
 
 class BaseYSliderAction(ActionTerm):
@@ -259,6 +276,7 @@ class ReferenceResidualJointActionCfg(ActionTermCfg):
     residual_scale: float | list[float] = 0.1
     action_delay_steps_min: int = 0
     action_delay_steps_max: int = 0
+    action_smoothing_alpha: float = 0.0
 
 
 @configclass
