@@ -49,6 +49,9 @@ from a1_table_tennis_deploy import (
     ObservationAssembler,
     A1TableTennisController,
     process_action,
+    compute_ball_time_to_arrive,
+    predict_ball_hit_point,
+    compute_ball_bounce_state,
     DEFAULT_MOTION_FILES,
     RIGHT_ARM_JOINT_NAMES,
     DEFAULT_JOINT_POS,
@@ -70,18 +73,18 @@ except ImportError:
 # Constants
 # ---------------------------------------------------------------------------
 
-CONTROL_HZ = 100.0  # 100Hz control loop
+CONTROL_HZ = 50.0  # 50Hz control loop
 STEP_DT = 1.0 / CONTROL_HZ  # 覆盖 deploy 脚本中的 0.02，匹配实际控制频率
 
 # /joint_states 中右臂关节名称 → 内部索引 (0~6)
 RIGHT_ARM_SOURCE_NAMES = {
-    "joint1-r": 0,
-    "joint2-r": 1,
-    "joint3-r": 2,
-    "joint4-r": 3,
-    "joint5-r": 4,
-    "joint6-r": 5,
-    "joint7-r": 6,
+    "joint1-a1_r": 0,
+    "joint2-a1_r": 1,
+    "joint3-a1_r": 2,
+    "joint4-a1_r": 3,
+    "joint5-a1_r": 4,
+    "joint6-a1_r": 5,
+    "joint7-a1_r": 6,
 }
 
 # 推理输出中的关节名 (发布到 a1/sent_actions)
@@ -120,6 +123,9 @@ class PPOPingPongNode(Node):
 
     RECOVER_DURATION = 0.5  # 回归等待位姿的时间(秒)
     BLEND_DURATION = 0.08   # IDLE→TRACKING 平滑过渡时间(秒)
+    IDLE_RETURN_ALPHA = 0.02  # IDLE 状态下每步向 default_pos 指数平滑系数 (越小越慢)
+    PHASE_CORRECTION_GAIN = 0.10  # 闭环 phase 校正比例增益
+    PHASE_CORRECTION_MAX = 0.006  # 每步最大校正量 (50Hz 下约 ±30% speed bias)
 
     def __init__(self):
         super().__init__("ppo_inference_pingpong_a1")
@@ -153,9 +159,21 @@ class PPOPingPongNode(Node):
             "ball_vx", "ball_vy", "ball_vz",
             "racket_x", "racket_y", "racket_z",
             "phase", "phase_speed", "motion_id",
+            "ball_time_to_arrive", "pred_hit_y", "pred_hit_z", "pred_hit_t",
+            "bounce_has", "bounce_rising", "bounce_urgency",
+        ])
+        # 观测值+动作 单独 CSV (方便 sim2real 对比)
+        obs_log_path = os.path.join(log_dir, f"a1_obs_{timestamp}.csv")
+        self._obs_csv_file = open(obs_log_path, "w", newline="")
+        self._obs_csv_writer = csv.writer(self._obs_csv_file)
+        self._obs_csv_writer.writerow([
+            "time_s", "state",
+            *[f"obs_{i:02d}" for i in range(57)],
+            *[f"act_{i}" for i in range(8)],
         ])
         self._log_start_time = time.time()
         self.get_logger().info(f"CSV log: {log_path}")
+        self.get_logger().info(f"Obs log: {obs_log_path}")
 
         # ---- PPO Controller ----
         self.get_logger().info(f"Loading A1 PPO policy from: {policy_path}")
@@ -163,7 +181,7 @@ class PPOPingPongNode(Node):
             policy_path=policy_path, device=device
         )
 
-        # 覆盖 phase machine 内部的 STEP_DT，匹配 100Hz 控制频率
+        # 覆盖 phase machine 内部的 STEP_DT，匹配 50Hz 控制频率
         import a1_table_tennis_deploy
         a1_table_tennis_deploy.STEP_DT = STEP_DT
 
@@ -179,6 +197,15 @@ class PPOPingPongNode(Node):
         self._has_joint_data = False
         self._has_ball_data = False
         self._ball_last_time = 0.0
+
+        # 差分计算关节速度
+        self._prev_joint_pos = self._joint_pos.copy()
+        self._prev_joint_time = 0.0
+
+        # 球加速度估计 (用于闭环 phase 校正)
+        self._prev_ball_vx = 0.0
+        self._prev_ball_vel_time = 0.0
+        self._ball_ax_est = 0.0  # 指数平滑后的 ax 估计值
 
         # FK for racket position (computed from joint angles, no external topic needed)
         self._lift_joint_pos = -0.28
@@ -233,15 +260,22 @@ class PPOPingPongNode(Node):
     # ------------------------------------------------------------------
 
     def _joint_states_cb(self, msg: JointState) -> None:
+        now = time.time()
         with self._lock:
+            # DEBUG: 打印一次实际收到的关节名
+            if not hasattr(self, "_joint_names_logged"):
+                self.get_logger().info(f"Joint names in /right_joint_states: {list(msg.name)}")
+                self._joint_names_logged = True
             for name, pos in zip(msg.name, msg.position):
                 if name in RIGHT_ARM_SOURCE_NAMES:
                     idx = RIGHT_ARM_SOURCE_NAMES[name]
                     self._joint_pos[idx] = float(pos)
-            for name, vel in zip(msg.name, msg.velocity):
-                if name in RIGHT_ARM_SOURCE_NAMES:
-                    idx = RIGHT_ARM_SOURCE_NAMES[name]
-                    self._joint_vel[idx] = float(vel)
+            # 差分计算关节速度（替代 topic velocity）
+            dt = now - self._prev_joint_time if self._prev_joint_time > 0 else 0.0
+            if dt > 1e-4:
+                self._joint_vel = (self._joint_pos - self._prev_joint_pos) / dt
+            self._prev_joint_pos = self._joint_pos.copy()
+            self._prev_joint_time = now
             if msg.effort:
                 for name, eff in zip(msg.name, msg.effort):
                     if name in RIGHT_ARM_SOURCE_NAMES:
@@ -258,8 +292,19 @@ class PPOPingPongNode(Node):
             self._ball_last_time = time.time()
 
     def _ball_vel_cb(self, msg: TwistStamped) -> None:
+        now = time.time()
         with self._lock:
-            self._ball_vel[0] = msg.twist.linear.x
+            new_vx = msg.twist.linear.x
+            # 估计球 x 方向加速度
+            dt = now - self._prev_ball_vel_time if self._prev_ball_vel_time > 0 else 0.0
+            if dt > 1e-4 and dt < 0.5:
+                ax_raw = (new_vx - self._prev_ball_vx) / dt
+                # 指数平滑，alpha=0.3 平衡响应速度和噪声
+                self._ball_ax_est = 0.7 * self._ball_ax_est + 0.3 * ax_raw
+            self._prev_ball_vx = new_vx
+            self._prev_ball_vel_time = now
+
+            self._ball_vel[0] = new_vx
             self._ball_vel[1] = msg.twist.linear.y
             self._ball_vel[2] = msg.twist.linear.z
 
@@ -277,6 +322,11 @@ class PPOPingPongNode(Node):
     def _control_loop(self) -> None:
         if not self._has_joint_data:
             return
+
+        # 首次收到关节数据时，将 _last_target 初始化为当前实际位置
+        if not hasattr(self, "_target_initialized"):
+            self._last_target = self._joint_pos.copy()
+            self._target_initialized = True
 
         with self._lock:
             joint_pos = self._joint_pos.copy()
@@ -312,6 +362,10 @@ class PPOPingPongNode(Node):
         # ---- CSV 记录 ----
         t = time.time() - self._log_start_time
         pm = self.controller.phase_machine
+        # 计算球到达相关观测值
+        ball_tta = compute_ball_time_to_arrive(ball_pos, ball_vel)
+        pred_y, pred_z, pred_t = predict_ball_hit_point(ball_pos, ball_vel)
+        bounce_state = compute_ball_bounce_state(ball_pos, ball_vel)
         self._csv_writer.writerow([
             f"{t:.4f}", self._state,
             *[f"{v:.5f}" for v in joint_pos],
@@ -322,6 +376,22 @@ class PPOPingPongNode(Node):
             *[f"{v:.4f}" for v in ball_vel],
             *[f"{v:.4f}" for v in racket_pos],
             f"{pm.phase:.4f}", f"{pm.phase_speed:.4f}", pm.motion_id,
+            f"{ball_tta:.4f}", f"{pred_y:.4f}", f"{pred_z:.4f}", f"{pred_t:.4f}",
+            f"{bounce_state[0]:.1f}", f"{bounce_state[1]:.1f}", f"{bounce_state[2]:.4f}",
+        ])
+
+        # 观测值 CSV: 记录策略实际输入的 57D obs 和 8D action
+        info = getattr(self, '_last_info', None)
+        if info is not None and "obs" in info:
+            obs = info["obs"]
+            act = info["action_raw"]
+        else:
+            obs = np.zeros(57, dtype=np.float32)
+            act = np.zeros(8, dtype=np.float32)
+        self._obs_csv_writer.writerow([
+            f"{t:.4f}", self._state,
+            *[f"{v:.5f}" for v in obs],
+            *[f"{v:.5f}" for v in act],
         ])
 
         # ---- 日志 ----
@@ -349,7 +419,12 @@ class PPOPingPongNode(Node):
         """Rally 状态机，返回关节目标位置 (7,)."""
 
         if self._state == RallyState.IDLE:
-            self._last_target = self._default_pos.copy()
+            # Hold current position，缓慢指数平滑回归 default_pos（避免突变）
+            self._last_target = (
+                (1 - self.IDLE_RETURN_ALPHA) * self._last_target
+                + self.IDLE_RETURN_ALPHA * self._default_pos
+            )
+            self._last_info = None
             if has_ball and self._ball_incoming(ball_pos, ball_vel):
                 self._start_blending(ball_pos, ball_vel, joint_pos)
 
@@ -358,6 +433,7 @@ class PPOPingPongNode(Node):
             target, info = self.controller.step(
                 joint_pos, joint_vel, ball_pos, ball_vel, ball_ang_vel, racket_pos
             )
+            self._last_info = info
             self._blend_t += STEP_DT
             alpha = min(1.0, self._blend_t / self.BLEND_DURATION)
             alpha_smooth = 0.5 * (1.0 - np.cos(np.pi * alpha))
@@ -372,6 +448,9 @@ class PPOPingPongNode(Node):
             target, info = self.controller.step(
                 joint_pos, joint_vel, ball_pos, ball_vel, ball_ang_vel, racket_pos
             )
+            self._last_info = info
+            # 闭环 phase 校正: 根据球实时位置追赶理想 phase
+            self._correct_phase(ball_pos, ball_vel)
             self._last_target = target
 
             if info["phase"] > HIT_PHASE:
@@ -381,6 +460,7 @@ class PPOPingPongNode(Node):
             target, info = self.controller.step(
                 joint_pos, joint_vel, ball_pos, ball_vel, ball_ang_vel, racket_pos
             )
+            self._last_info = info
             self._last_target = target
 
             if self.controller.is_swing_done:
@@ -388,6 +468,7 @@ class PPOPingPongNode(Node):
                 self._start_recovery(joint_pos)
 
         elif self._state == RallyState.RECOVERING:
+            self._last_info = None
             self._recover_t += STEP_DT
             alpha = min(1.0, self._recover_t / self.RECOVER_DURATION)
             alpha_smooth = 0.5 * (1.0 - np.cos(np.pi * alpha))
@@ -399,8 +480,8 @@ class PPOPingPongNode(Node):
                 self._state = RallyState.IDLE
 
         # 速率限制: 防止任何阶段出现目标跳变，限制每步最大变化量
-        # 100Hz 下 MAX_DELTA=0.04 rad/step ≈ 4 rad/s 最大关节速度
-        MAX_DELTA = 0.04
+        # 50Hz 下 MAX_DELTA=0.08 rad/step ≈ 4 rad/s 最大关节速度
+        MAX_DELTA = 0.08
         if hasattr(self, '_prev_output'):
             delta = self._last_target - self._prev_output
             self._last_target = self._prev_output + np.clip(delta, -MAX_DELTA, MAX_DELTA)
@@ -415,6 +496,50 @@ class PPOPingPongNode(Node):
             and ball_pos[0] > ROBOT_X + self._ball_x_offset
             and ball_pos[2] > 0.0
         )
+
+    def _correct_phase(self, ball_pos: np.ndarray, ball_vel: np.ndarray):
+        """闭环 phase 校正: 根据球实时位置让 phase 追上理想值。
+        使用匀加速模型估计 t_remain，补偿球的真实加速度。"""
+        vx = ball_vel[0]
+        if vx >= -0.1:
+            return
+        pm = self.controller.phase_machine
+        duration = pm.motion.duration(pm.motion_id)
+
+        # 匀加速模型: x = x0 + vx*t + 0.5*ax*t²
+        # 解 t 使得 ball_x + vx*t + 0.5*ax*t² = ROBOT_X
+        dx = ROBOT_X - ball_pos[0]  # 负值 (球在 ROBOT_X 前方)
+        ax = self._ball_ax_est
+
+        t_remain = None
+        if abs(ax) > 0.1:
+            # 二次方程: 0.5*ax*t² + vx*t - dx = 0
+            disc = vx * vx + 2.0 * ax * dx
+            if disc >= 0:
+                sqrt_disc = np.sqrt(disc)
+                # 取正根: t = (-vx - sqrt(disc)) / ax
+                t_remain = (-vx - sqrt_disc) / ax
+                if t_remain <= 0:
+                    t_remain = None
+
+        # 退化到匀速模型
+        if t_remain is None:
+            t_remain = dx / vx
+
+        t_remain = max(0.05, t_remain)
+
+        # 理想 phase: 使得 t_remain 后恰好到 HIT_PHASE
+        ideal_phase = (HIT_PHASE - t_remain / duration) % 1.0
+        # phase 误差 (wrapped to [-0.5, 0.5])
+        error = ideal_phase - pm.phase
+        if error > 0.5:
+            error -= 1.0
+        elif error < -0.5:
+            error += 1.0
+        # 只向前校正 (加速)，不向后拉 (避免动作倒退)
+        if error > 0:
+            correction = min(error * self.PHASE_CORRECTION_GAIN, self.PHASE_CORRECTION_MAX)
+            pm.phase += correction
 
     def _start_blending(self, ball_pos: np.ndarray, ball_vel: np.ndarray, current_pos: np.ndarray):
         """从 IDLE 进入 BLENDING，平滑过渡到参考动作。"""
@@ -456,6 +581,7 @@ def main() -> None:
         pass
     finally:
         node._csv_file.close()
+        node._obs_csv_file.close()
         node.get_logger().info("CSV log saved and closed.")
         node.destroy_node()
         rclpy.shutdown()

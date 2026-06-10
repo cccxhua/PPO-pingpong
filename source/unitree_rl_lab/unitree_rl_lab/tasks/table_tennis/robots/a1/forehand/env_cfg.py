@@ -34,9 +34,22 @@ TABLE_USD_PATH = os.path.join(
     "data", "robots", "a1", "table_tennis_table.usd"
 )
 
+# 乒乓球资源: 与球桌同目录, 用相对路径避免硬编码绝对路径
+BALL_USD_PATH = os.path.join(os.path.dirname(TABLE_USD_PATH), "ping_pong_ball.usd")
+
 # 分阶段域随机化开关 (累积式), 由环境变量 DR_STAGE 控制:
 #   0 = 确定性基线 (无随机化)   1 = + 发球范围   2 = + 动作延迟   3 = + PD/力矩/观测噪声/观测延迟
 DR_STAGE = int(os.environ.get("DR_STAGE", "0"))
+
+# 发球预设, 由 SERVE_STAGE 控制 (DR_STAGE>=1 时生效, 否则强制 MIDDLE_BALL 单点):
+#   0 = MIDDLE_DR_BALL (基线, 球速 3.0 m/s, vz 全上抛)
+#   --- A 路径: 所有维度同步逐步放大到真人 5/95% 分位 ---
+#   1 = A1  全维度走 50% 路径 (中等扩张, 球速中位 3.5 m/s, vz 含小幅下落)
+#   2 = A2  全维度到真人 5/95% (球速中位 3.95 m/s, vz 完整 ±1m/s)
+#   --- B 路径: 球出生点后移, 模拟完整发球过程 (待实现) ---
+#   3 = B1  出生点回移到对方端线 (x≈+1.0), 仍直接抛物线
+#   4 = B2  出生点 +1.30 + 模拟己方台弹跳 (完整真人发球)
+SERVE_STAGE = int(os.environ.get("SERVE_STAGE", "0"))
 
 # Robot side: +1 = robot at +X (original), -1 = robot at -X (flipped)
 ROBOT_SIDE = -1
@@ -91,16 +104,58 @@ MIDDLE_BALL = {
 }
 
 # 以 MIDDLE_BALL 为中心向外随机 (第 1 步发球随机化):
-# 纵深(x/vx)、高度(z/vz) 小幅, 横向(y/vy) 渐进放大 —— 当前档 (y±0.08, vy±0.20),
-# 配合修正后的 ball_landed_on_own_table 终止判定 (不再误杀回球过网低空帧)。
+# 中幅扩大档: 纵深 x±0.15、vx 2.6~3.4, 高度 z 1.00~1.30、vz 渐进, 横向 y±0.25 / vy±0.35.
+# z 下界 1.00 (回退自 0.90): 与 vz=0.10 + x=0.50 + vx=-2.6 组合可保证球过网,
+# 否则 ~22% 不合格球过网时 z<0.913m 直接撞网.
 # ROBOT_SIDE=-1: x 在 +X 出生, vx 朝 -X 飞向 A1。
 MIDDLE_DR_BALL = {
-    "x_range":  (min(-0.40 * ROBOT_SIDE, -0.30 * ROBOT_SIDE), max(-0.40 * ROBOT_SIDE, -0.30 * ROBOT_SIDE)),
-    "y_range":  (-0.12, 0.12),
-    "z_range":  (1.00, 1.20),
-    "vx_range": (min(2.8 * ROBOT_SIDE, 3.2 * ROBOT_SIDE), max(2.8 * ROBOT_SIDE, 3.2 * ROBOT_SIDE)),
-    "vy_range": (-0.20, 0.20),
+    "x_range":  (min(-0.50 * ROBOT_SIDE, -0.20 * ROBOT_SIDE), max(-0.50 * ROBOT_SIDE, -0.20 * ROBOT_SIDE)),
+    "y_range":  (-0.25, 0.25),
+    "z_range":  (1.00, 1.30),
+    "vx_range": (min(2.6 * ROBOT_SIDE, 3.4 * ROBOT_SIDE), max(2.6 * ROBOT_SIDE, 3.4 * ROBOT_SIDE)),
+    "vy_range": (-0.35, 0.35),
     "vz_range": (0.10, 0.30),
+}
+
+# === 真人发球数据驱动 (data_0602, n=109 段, 取在 x=+0.35 时的瞬时状态) ===
+# 真人 5/95% 分位: y[-0.13,+0.22] z[+0.99,+1.50] vx[-4.67,-3.24] vy[-0.51,+0.72] vz[-0.97,+1.25]
+# 当前 sim 的 vx 慢 1m/s 且 vz 全是上抛 (5% 真人落在 sim vz 范围), 必须修正.
+# 渐进策略: 所有维度同步从 MIDDLE_DR 向真人 5/95% 线性插值, A1 走一半, A2 走完整.
+_BASE_X_RANGE = (min(-0.50 * ROBOT_SIDE, -0.20 * ROBOT_SIDE),
+                 max(-0.50 * ROBOT_SIDE, -0.20 * ROBOT_SIDE))
+
+# A1: 全维度 α=0.5 (MIDDLE_DR 与真人 5/95% 的中点)
+SERVE_A1_BALL = {
+    "x_range":  _BASE_X_RANGE,
+    "y_range":  (-0.20, 0.24),
+    "z_range":  (0.95, 1.40),
+    "vx_range": (min(2.9 * ROBOT_SIDE, 4.0 * ROBOT_SIDE), max(2.9 * ROBOT_SIDE, 4.0 * ROBOT_SIDE)),
+    "vy_range": (-0.45, 0.55),
+    "vz_range": (-0.45, 0.80),
+}
+
+# A2: 全维度 α=1.0 (真人 5/95% 完整范围)
+SERVE_A2_BALL = {
+    "x_range":  _BASE_X_RANGE,
+    "y_range":  (-0.15, 0.25),
+    "z_range":  (0.99, 1.50),
+    "vx_range": (min(3.2 * ROBOT_SIDE, 4.7 * ROBOT_SIDE), max(3.2 * ROBOT_SIDE, 4.7 * ROBOT_SIDE)),
+    "vy_range": (-0.50, 0.70),
+    "vz_range": (-1.00, 1.30),
+}
+
+# B 阶段占位 — 后续实现 (出生点后移到对方端线 +1.0~+1.3, 含己方台弹跳模拟).
+SERVE_B1_BALL = None
+SERVE_B2_BALL = None
+
+# vx 加速会缩短球到机器人的飞行时间 → ball_arrive_time_est 需同步前移.
+# 估算: |x_b - x_birth| ≈ 0.95m, t ≈ 0.95/|vx_中位| + 0.16 接球缓冲.
+SERVE_ARRIVE_TIME = {
+    0: 0.51,  # MIDDLE_DR_BALL  vx 中位 -3.0
+    1: 0.43,  # A1              vx 中位 -3.45
+    2: 0.40,  # A2              vx 中位 -3.95
+    3: 0.51,  # B1 占位
+    4: 0.51,  # B2 占位
 }
 
 # whip_high3 serve: moderate-high/slow ball that arrives near apex in the paddle's
@@ -150,7 +205,7 @@ class X1TableTennisSceneCfg(InteractiveSceneCfg):
     ball = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Ball",
         spawn=sim_utils.UsdFileCfg(
-            usd_path="/root/x1/ping_pong_ball.usd",
+            usd_path=BALL_USD_PATH,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 kinematic_enabled=False,
                 disable_gravity=False,
@@ -194,9 +249,10 @@ class ActionsCfg:
         asset_name="robot",
         joint_names=RIGHT_ARM_JOINT_NAMES,
         command_name="motion",
-        residual_scale=[0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05],
+        residual_scale=[0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15],
         action_delay_steps_min=0,
         action_delay_steps_max=0,  # 关闭所有随机化: 无动作延迟
+        action_smoothing_alpha=0.7,  # 1st-order EMA on residual; 与真机一阶 LPF 匹配, 训练 sim2real 一致性必需
     )
     phase_speed = mdp.PhaseSpeedActionCfg(
         asset_name="robot",
@@ -328,12 +384,12 @@ class RewardsCfg:
     # -- 模仿奖励: pose 锚点 (V66 ref motion 已能 1/2 过网, 加大跟踪权重让 policy 紧贴 ref)
     pose_tracking = RewTerm(
         func=mdp.upper_body_pose_tracking_exp,
-        weight=0.8,  # 模仿为主, 对齐参考 run 2026-05-19_10-01-14
+        weight=0.6,  # 模仿为主, 对齐参考 run 2026-05-19_10-01-14
         params={"command_name": "motion", "sigma": 0.3},
     )
     vel_tracking = RewTerm(
         func=mdp.upper_body_vel_tracking_exp,
-        weight=0.80,  # 对齐参考 run 2026-05-19_10-01-14
+        weight=0.60,  # 对齐参考 run 2026-05-19_10-01-14
         params={"command_name": "motion", "sigma": 0.2},
     )
     # joint2_tracking 已移除: yb2(joint_yb_2) 对 A1 不重要, 无需单独跟踪
@@ -341,7 +397,7 @@ class RewardsCfg:
     # -- 引导奖励: 球拍靠近球 (Stage 2 恢复)
     racket_ball_proximity = RewTerm(
         func=mdp.racket_ball_proximity,
-        weight=0.60,  # Stage 2: 0.20 → 0.60
+        weight=0.30,  # Stage 2: 0.20 → 0.60
         params={
             "ball_name": "ball",
             "racket_body_name": RACKET_BODY_NAME,
@@ -418,7 +474,7 @@ class RewardsCfg:
     # 没动力学硬挥. 改后: 软碰 ≈ 0.5, 硬挥 ≈ 0.5+1.5+2.0=4.0 → 8× 差距推 policy 学 peak 时机.
     ball_hit = RewTerm(
         func=mdp.ball_hit_reward,
-        weight=1.50,  # 1.50 → 0.50 (Fix F)
+        weight=2.50,  # 1.50 → 0.50 (Fix F)
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=[RACKET_BODY_NAME]),
             "ball_name": "ball",
@@ -427,7 +483,7 @@ class RewardsCfg:
     )
     ball_hit_speed = RewTerm(
         func=mdp.ball_speed_after_hit,
-        weight=1.50,
+        weight=2.20,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=[RACKET_BODY_NAME]),
             "ball_name": "ball",
@@ -458,12 +514,12 @@ class RewardsCfg:
     # -- 回球奖励
     ball_return = RewTerm(
         func=mdp.ball_return_reward,
-        weight=2.00,  # 对齐参考 run 2026-05-19_10-01-14
+        weight=3.00,  # 对齐参考 run 2026-05-19_10-01-14
         params={"ball_name": "ball", "command_name": "motion", "net_x": 0.0, "robot_side": ROBOT_SIDE},
     )
     ball_land_opponent = RewTerm(
         func=mdp.ball_land_on_opponent_table,
-        weight=2.00,  # 对齐参考 run 2026-05-19_10-01-14
+        weight=3.00,  # 对齐参考 run 2026-05-19_10-01-14
         params={"ball_name": "ball", "command_name": "motion",
                 "table_x_min": OPP_TABLE_X[0], "table_x_max": OPP_TABLE_X[1]},
     )
@@ -481,10 +537,10 @@ class RewardsCfg:
     )
 
     # -- 正则化
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.15)
     joint_acc = RewTerm(
         func=mdp.joint_acc_l2,
-        weight=-1.0e-6,
+        weight=-5.0e-6,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=RIGHT_ARM_JOINT_NAMES)},
     )
     joint_limit = RewTerm(
@@ -605,7 +661,7 @@ class RobotEnvCfg(ManagerBasedRLEnvCfg):
     events: EventCfg = EventCfg()
 
     obs_delay_min: int = 0
-    obs_delay_max: int = 3
+    obs_delay_max: int = 1
 
     def __post_init__(self):
         self.decimation = 4
@@ -620,16 +676,28 @@ class RobotEnvCfg(ManagerBasedRLEnvCfg):
             self.scene.robot.init_state.rot = (1.0, 0.0, 0.0, 0.0)
         # 分阶段域随机化 (DR_STAGE 累积式, 见文件顶部):
         #   0 = 确定性基线   1 = + 发球范围   2 = + 动作延迟   3 = + PD/力矩/观测噪声/观测延迟
-        # 第 1 步: 发球范围 (middle 为中心, 横向放大)
+        # 第 1 步: 发球范围 — 由 SERVE_STAGE 选择具体预设
         if DR_STAGE >= 1:
-            self.events.reset_ball.params.update(MIDDLE_DR_BALL)
-            self.events.relaunch_ball.params.update(MIDDLE_DR_BALL)
-        # 第 2 步: 动作延迟 (max=2 ≈ 40ms)
-        self.actions.right_arm.action_delay_steps_max = 2 if DR_STAGE >= 2 else 0
-        # 第 3 步: PD 增益 / 力矩 / 观测噪声 / 观测延迟
+            serve_presets = {
+                0: MIDDLE_DR_BALL,
+                1: SERVE_A1_BALL,
+                2: SERVE_A2_BALL,
+                3: SERVE_B1_BALL,
+                4: SERVE_B2_BALL,
+            }
+            ball_params = serve_presets.get(SERVE_STAGE)
+            if ball_params is None:
+                raise ValueError(f"SERVE_STAGE={SERVE_STAGE} 未实现 (B1/B2 阶段尚未落地)")
+            self.events.reset_ball.params.update(ball_params)
+            self.events.relaunch_ball.params.update(ball_params)
+            # vx 加速 → 同步缩短 ball_arrive_time_est, 否则 hit_phase 对齐失败
+            self.commands.motion.ball_arrive_time_est = SERVE_ARRIVE_TIME[SERVE_STAGE]
+        # 第 2 步: 动作延迟 (min=0,max=1 → 0~20ms, 均值 10ms ≈ 真实延迟)
+        self.actions.right_arm.action_delay_steps_max = 1 if DR_STAGE >= 2 else 0
+        # 第 3 步: PD 增益 / 力矩 / 观测噪声 / 观测延迟 (obs_delay min=0,max=1 → 均值 10ms)
         if DR_STAGE >= 3:
             self.observations.policy.enable_corruption = True
-            self.obs_delay_max = 3
+            self.obs_delay_max = 1
         else:
             self.events.randomize_gains = None
             self.events.randomize_effort = None

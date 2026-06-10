@@ -58,9 +58,9 @@ from x1_table_tennis_deploy import (
 # Constants
 # ---------------------------------------------------------------------------
 
-X1_BASE_DIR = "/home/woan/下载/x1"
-X1_URDF_PATH = os.path.join(X1_BASE_DIR, "x1/urdf/x1.urdf")
-X1_MESH_DIR = os.path.join(X1_BASE_DIR, "x1/meshes")
+X1_BASE_DIR = "/home/woan/下载/A1"
+X1_URDF_PATH = os.path.join(X1_BASE_DIR, "urdf/a1.urdf")
+X1_MESH_DIR = os.path.join(X1_BASE_DIR, "meshes")
 TABLE_USD_PATH = os.path.join(X1_BASE_DIR, "table_tennis_table.usd")
 BALL_USD_PATH = os.path.join(X1_BASE_DIR, "ping_pong_ball.usd")
 
@@ -70,11 +70,11 @@ DECIMATION = 4  # 0.005 * 4 = 0.02s = 50Hz control (same as IsaacSim training)
 # Ball launch parameters — matching IsaacSim training (EASY_BALL from env_cfg.py)
 BALL_LAUNCH = {
     "x_range": (-0.33, -0.37),
-    "y_range": (0.0, 0.0),
-    "z_range": (1.28, 1.32),
-    "vx_range": (3.3, 3.7),
+    "y_range": (-0.08, 0.08),
+    "z_range": (1.05, 1.15),
+    "vx_range": (2.8, 3.2),
     "vy_range": (-0.2, 0.2),
-    "vz_range": (0.3, 0.7),
+    "vz_range": (0.1, 0.3),
 }
 
 # Other joints to lock at default
@@ -530,7 +530,7 @@ def _replace_actuators(root: ET.Element):
 
     # PD gains exactly matching deploy script (x1_table_tennis_deploy.py)
     mj_kp = {"joint_yb_1": 250.0, "joint_yb_2": 250.0, "joint_yb_3": 250.0,
-             "joint_yb_4": 150.0, "joint_yb_5": 150.0, "joint_yb_6": 150.0, "joint_yb_7": 150.0}
+             "joint_yb_4": 120.0, "joint_yb_5": 120.0, "joint_yb_6": 120.0, "joint_yb_7": 120.0}
     mj_kv = {"joint_yb_1": 1.0, "joint_yb_2": 1.0, "joint_yb_3": 1.0,
              "joint_yb_4": 0.5, "joint_yb_5": 0.5, "joint_yb_6": 0.5, "joint_yb_7": 0.5}
 

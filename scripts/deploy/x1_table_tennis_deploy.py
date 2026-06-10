@@ -38,7 +38,7 @@ MOTION_DIR = os.path.join(
     "source/unitree_rl_lab/unitree_rl_lab/tasks/table_tennis/robots/x1/forehand",
 )
 DEFAULT_MOTION_FILES = [
-    os.path.join(MOTION_DIR, "forehand_middle.npz"),
+    os.path.join(MOTION_DIR, "forehand_middle_a1_whip.npz"),
     os.path.join(MOTION_DIR, "forehand_left.npz"),
     os.path.join(MOTION_DIR, "forehand_right.npz"),
 ]
@@ -49,19 +49,19 @@ RIGHT_ARM_JOINT_NAMES = [
 ]
 
 DEFAULT_JOINT_POS = {
-    "joint_yb_1": 1.56, "joint_yb_2": -0.12, "joint_yb_3": -1.70,
-    "joint_yb_4": 1.50, "joint_yb_5": 2.03, "joint_yb_6": 0.00,
-    "joint_yb_7": -0.39,
+    "joint_yb_1": 1.769, "joint_yb_2": -0.762, "joint_yb_3": -1.863,
+    "joint_yb_4": 1.445, "joint_yb_5": 0.206, "joint_yb_6": -0.827,
+    "joint_yb_7": 1.043,
 }
 
 JOINT_LIMITS = {
-    "joint_yb_1": (-1.053, 3.169),
-    "joint_yb_2": (-3.081, 0.314),
-    "joint_yb_3": (-2.777, 2.762),
-    "joint_yb_4": (-1.911, 1.948),
-    "joint_yb_5": (-2.789, 2.761),
-    "joint_yb_6": (-1.288, 1.508),
-    "joint_yb_7": (-3.14, 3.14),
+    "joint_yb_1": (-1.04, 3.14),
+    "joint_yb_2": (-3.14, 0.26),
+    "joint_yb_3": (-2.758, 2.758),
+    "joint_yb_4": (-1.92, 1.92),
+    "joint_yb_5": (-2.758, 2.758),
+    "joint_yb_6": (-1.57, 1.57),
+    "joint_yb_7": (-2.758, 2.758),
 }
 
 RESIDUAL_SCALE = np.array([0.05] * 7, dtype=np.float32)
@@ -70,7 +70,7 @@ PHASE_SPEED_MAX = 1.15
 
 # PD gains (matching IsaacSim implicit actuator)
 KP = {"joint_yb_1": 250.0, "joint_yb_2": 250.0, "joint_yb_3": 250.0,
-      "joint_yb_4": 150.0, "joint_yb_5": 150.0, "joint_yb_6": 150.0, "joint_yb_7": 150.0}
+      "joint_yb_4": 120.0, "joint_yb_5": 120.0, "joint_yb_6": 120.0, "joint_yb_7": 120.0}
 KD = {"joint_yb_1": 1.0, "joint_yb_2": 1.0, "joint_yb_3": 1.0,
       "joint_yb_4": 0.5, "joint_yb_5": 0.5, "joint_yb_6": 0.5, "joint_yb_7": 0.5}
 
@@ -78,8 +78,8 @@ ROBOT_POS = np.array([1.7, 0.14, 0.0], dtype=np.float32)
 ROBOT_X = 1.5  # effective x for ball prediction (table center to robot)
 
 STEP_DT = 0.02  # 50 Hz control
-HIT_PHASE = 0.475
-BALL_ARRIVE_TIME_EST = 0.55
+HIT_PHASE = 0.54
+BALL_ARRIVE_TIME_EST = 0.51
 BALL_Y_THRESHOLD = 0.05
 
 

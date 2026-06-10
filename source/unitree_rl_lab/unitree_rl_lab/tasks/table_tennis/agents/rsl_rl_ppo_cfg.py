@@ -17,13 +17,34 @@ class TableTennisPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         activation="elu",
     )
     algorithm = RslRlPpoAlgorithmCfg(
+        value_loss_coef=0.5,
+        use_clipped_value_loss=True,
+        clip_param=0.2,
+        entropy_coef=0.005,
+        num_learning_epochs=3,
+        num_mini_batches=4,
+        learning_rate=1.0e-4,
+        schedule="adaptive",
+        gamma=0.99,
+        lam=0.95,
+        desired_kl=0.005,
+        max_grad_norm=1.0,
+    )
+
+
+@configclass
+class A1TableTennisPPORunnerCfg(TableTennisPPORunnerCfg):
+    """A1 乒乓球 (模仿为主) PPO 配置: lr=3e-4, value_loss_coef=1.0, epochs=5, desired_kl=0.01."""
+
+    experiment_name = "a1_tabletennis"
+    algorithm = RslRlPpoAlgorithmCfg(
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
         clip_param=0.2,
-        entropy_coef=0.005,  # Fix L: 0.0 → 0.005, 解 action_std 塌至 0.02 → 探索完全死的死结. 之前所有 reward 调整 (J/K) 因 std 太小学不进去, 先恢复探索再谈 shaping.
+        entropy_coef=0.005,
         num_learning_epochs=5,
         num_mini_batches=4,
-        learning_rate=1.0e-3,
+        learning_rate=3.0e-4,
         schedule="adaptive",
         gamma=0.99,
         lam=0.95,

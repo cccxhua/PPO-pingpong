@@ -71,6 +71,7 @@ JOINT_LIMITS = {
 RESIDUAL_SCALE = np.array([0.05] * 7, dtype=np.float32)
 PHASE_SPEED_MIN = 0.85
 PHASE_SPEED_MAX = 1.15
+ACTION_SMOOTHING_ALPHA = 0.7
 
 # PD gains (matching IsaacSim implicit actuator)
 KP = {"joint_yb_1": 250.0, "joint_yb_2": 250.0, "joint_yb_3": 250.0,
@@ -84,7 +85,7 @@ ROBOT_X = -1.5  # effective x for ball prediction
 
 STEP_DT = 0.02  # 50 Hz control
 HIT_PHASE = 0.54
-BALL_ARRIVE_TIME_EST = 0.51
+BALL_ARRIVE_TIME_EST = 0.43  # DR_STAGE=1, SERVE_STAGE=1 (A1 preset, vx median ~3.45)
 BALL_Y_THRESHOLD = 0.05
 
 
@@ -314,21 +315,8 @@ class PhaseStateMachine:
 
     def _select_motion(self, ball_pos: np.ndarray, ball_vel: np.ndarray):
         """Select motion file based on predicted ball y."""
-        bx, by = ball_pos[0], ball_pos[1]
-        vx, vy = ball_vel[0], ball_vel[1]
-        if vx < -0.1:
-            t_arrive = (ROBOT_X - bx) / vx
-        else:
-            t_arrive = 1.0
-        predicted_y = by + vy * t_arrive
-
-        # 0=middle, 1=left, 2=right
-        if predicted_y > BALL_Y_THRESHOLD:
-            self.motion_id = 1
-        elif predicted_y < -BALL_Y_THRESHOLD:
-            self.motion_id = 2
-        else:
-            self.motion_id = 0
+        # TODO: only middle motion is trained; force motion_id=0
+        self.motion_id = 0
 
     def step(self, phase_speed_action: float):
         """Advance phase by one control step."""
@@ -520,6 +508,7 @@ class A1TableTennisController:
         self.phase_machine = PhaseStateMachine(self.motion)
         self.obs_assembler = ObservationAssembler()
         self.last_action = np.zeros(8, dtype=np.float32)
+        self._prev_residual = np.zeros(7, dtype=np.float32)
 
         self._episode_active = False
 
@@ -527,6 +516,7 @@ class A1TableTennisController:
         """Reset for new ball. Call when a new ball is launched."""
         self.phase_machine.reset(ball_pos, ball_vel)
         self.last_action[:] = 0.0
+        self._prev_residual[:] = 0.0
         self._episode_active = True
 
     def step(
@@ -563,9 +553,18 @@ class A1TableTennisController:
         action = self.policy.infer(obs)
         action = np.clip(action, -1.0, 1.0)
 
+        # EMA smoothing on residual (action[0:7])
+        if ACTION_SMOOTHING_ALPHA > 0.0:
+            smoothed = ACTION_SMOOTHING_ALPHA * self._prev_residual + (1.0 - ACTION_SMOOTHING_ALPHA) * action[:7]
+            self._prev_residual = smoothed.copy()
+            action_smoothed = action.copy()
+            action_smoothed[:7] = smoothed
+        else:
+            action_smoothed = action
+
         # Process action
         ref_dof, _, _ = self.phase_machine.get_reference()
-        target_joint_pos, phase_speed = process_action(action, ref_dof)
+        target_joint_pos, phase_speed = process_action(action_smoothed, ref_dof)
 
         # Advance phase
         self.phase_machine.step(phase_speed)

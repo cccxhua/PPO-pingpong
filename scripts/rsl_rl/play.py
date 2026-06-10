@@ -30,6 +30,18 @@ parser.add_argument(
     help="Use the pre-trained checkpoint from Nucleus.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
+parser.add_argument(
+    "--residual_scale",
+    type=float,
+    default=None,
+    help="Temporarily override actions.right_arm.residual_scale at play time (e.g. 0.05 to match an old checkpoint trained at scale=0.05).",
+)
+parser.add_argument(
+    "--safe_serve",
+    action="store_true",
+    default=False,
+    help="At play time, narrow the serve ranges to a friendlier center subset (drops edge/fast/dropping balls). Useful for demo videos where you want to showcase the policy's confident hits, not the OOD edges.",
+)
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -46,6 +58,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import gymnasium as gym
+import numpy as np
 import os
 import time
 import torch
@@ -73,6 +86,70 @@ def main():
         use_fabric=not args_cli.disable_fabric,
         entry_point_key="play_env_cfg_entry_point",
     )
+    # Optional: override residual_scale at play time (e.g. play an old checkpoint
+    # trained with scale=0.05 after the env file has moved on to 0.15).
+    if args_cli.residual_scale is not None:
+        right_arm_cfg = getattr(env_cfg.actions, "right_arm", None)
+        if right_arm_cfg is None or not hasattr(right_arm_cfg, "residual_scale"):
+            print("[WARN] --residual_scale ignored: env_cfg.actions.right_arm.residual_scale not found.")
+        else:
+            old = right_arm_cfg.residual_scale
+            new = [args_cli.residual_scale] * 7
+            right_arm_cfg.residual_scale = new
+            print(f"[OVERRIDE] residual_scale: {old} -> {new}")
+
+    # --safe_serve: keep the central / slower subset of the current serve preset.
+    # Drops edge balls (large |y|, very low/high z), fast balls (large |vx|), and
+    # downward serves (vz < 0). Same friendly subset is applied to both initial
+    # reset_ball and the relaunch_ball event.
+    if args_cli.safe_serve:
+        SAFE_FRAC_Y  = 0.5   # keep central 50% of y range
+        SAFE_FRAC_Z  = 0.4   # keep central 40% of z range (drops too-low / too-high)
+        SAFE_FRAC_VY = 0.5
+        SAFE_VX_KEEP = "slow"   # keep the slow half of vx (smaller |vx|)
+        SAFE_VZ_MIN  = 0.0      # require non-negative vz (drop dropping balls)
+
+        def _shrink_sym(rng, frac):
+            lo, hi = float(rng[0]), float(rng[1])
+            mid = 0.5 * (lo + hi)
+            half = 0.5 * (hi - lo) * frac
+            return (mid - half, mid + half)
+
+        def _vx_slow_half(rng):
+            lo, hi = float(rng[0]), float(rng[1])
+            # vx is negative when ROBOT_SIDE=-1 (ball flies toward robot at -X);
+            # "slow" = closer to 0, i.e. larger value when both negative.
+            mid = 0.5 * (lo + hi)
+            if abs(hi) < abs(lo):     # hi closer to 0 → slow side is [mid, hi]
+                return (mid, hi)
+            else:
+                return (lo, mid)
+
+        def _vz_drop_negative(rng):
+            lo, hi = float(rng[0]), float(rng[1])
+            return (max(lo, SAFE_VZ_MIN), max(hi, SAFE_VZ_MIN))
+
+        def _apply(params):
+            new_params = dict(params)
+            if "y_range" in params:  new_params["y_range"]  = _shrink_sym(params["y_range"], SAFE_FRAC_Y)
+            if "z_range" in params:  new_params["z_range"]  = _shrink_sym(params["z_range"], SAFE_FRAC_Z)
+            if "vy_range" in params: new_params["vy_range"] = _shrink_sym(params["vy_range"], SAFE_FRAC_VY)
+            if "vx_range" in params: new_params["vx_range"] = _vx_slow_half(params["vx_range"])
+            if "vz_range" in params: new_params["vz_range"] = _vz_drop_negative(params["vz_range"])
+            return new_params
+
+        for ev_name in ("reset_ball", "relaunch_ball"):
+            ev = getattr(env_cfg.events, ev_name, None)
+            if ev is None or ev.params is None:
+                continue
+            old_params = {k: ev.params.get(k) for k in ("x_range","y_range","z_range","vx_range","vy_range","vz_range")}
+            new_params = _apply(ev.params)
+            ev.params = new_params
+            print(f"[SAFE_SERVE] {ev_name}:")
+            for k in ("y_range","z_range","vx_range","vy_range","vz_range"):
+                if k in old_params and old_params[k] is not None:
+                    print(f"    {k:9s} {old_params[k]} -> {new_params[k]}")
+
     agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(args_cli.task, args_cli)
 
     # specify directory for logging experiments
@@ -150,6 +227,12 @@ def main():
 
     dt = env.unwrapped.step_dt
 
+    # joint position logging
+    joint_log = []
+    robot = env.unwrapped.scene["robot"]
+    joint_names = robot.joint_names
+    print(f"[INFO] Robot joint names ({len(joint_names)}): {joint_names}")
+
     # reset environment
     obs = env.get_observations()
     if version("rsl-rl-lib").startswith("2.3."):
@@ -164,6 +247,11 @@ def main():
             actions = policy(obs)
             # env stepping
             obs, _, _, _ = env.step(actions)
+
+            # log joint positions (right arm)
+            joint_pos = robot.data.joint_pos[0].cpu().numpy().copy()
+            joint_log.append(joint_pos)
+
         if args_cli.video:
             timestep += 1
             # Exit the play loop after recording one video
@@ -174,6 +262,87 @@ def main():
         sleep_time = dt - (time.time() - start_time)
         if args_cli.real_time and sleep_time > 0:
             time.sleep(sleep_time)
+
+    # save joint log
+    if joint_log:
+        joint_log_arr = np.array(joint_log)
+        save_path = os.path.join(log_dir, "play_joint_pos.npz")
+        np.savez(save_path, joint_pos=joint_log_arr, joint_names=joint_names)
+        print(f"[INFO] Saved joint positions: {save_path}  shape={joint_log_arr.shape}")
+        print(f"[INFO] Joint names: {joint_names}")
+
+        # also save as human-readable txt
+        txt_path = os.path.join(log_dir, "play_joint_pos.txt")
+        with open(txt_path, "w") as f:
+            f.write("# Joint position log\n")
+            f.write(f"# Columns: {joint_names}\n")
+            f.write(f"# Shape: {joint_log_arr.shape} (steps x joints)\n")
+            f.write(f"# dt = {dt:.4f}s\n\n")
+            header = "step\t" + "\t".join(joint_names)
+            f.write(header + "\n")
+            for i, pos in enumerate(joint_log_arr):
+                line = f"{i}\t" + "\t".join(f"{v:.4f}" for v in pos)
+                f.write(line + "\n")
+        print(f"[INFO] Saved joint positions (txt): {txt_path}")
+
+        # plot per-joint subplot figures for the right-arm (yb_*) joints if present:
+        # position, velocity, acceleration. Only per-joint subplots, no overlay variant.
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+
+            yb_idx = [i for i, n in enumerate(joint_names) if n.startswith("joint_yb_")]
+            if yb_idx:
+                yb_names = [joint_names[i] for i in yb_idx]
+                yb_pos = joint_log_arr[:, yb_idx]
+                # backward finite differences (matches typical real-robot estimation:
+                # current velocity uses pos[i] - pos[i-1]; first frame is padded)
+                yb_vel = np.zeros_like(yb_pos)
+                yb_vel[1:] = (yb_pos[1:] - yb_pos[:-1]) / dt
+                yb_vel[0] = yb_vel[1]
+                yb_acc = np.zeros_like(yb_vel)
+                yb_acc[1:] = (yb_vel[1:] - yb_vel[:-1]) / dt
+                yb_acc[0] = yb_acc[1]
+                t_axis = np.arange(joint_log_arr.shape[0]) * dt
+                n = len(yb_idx)
+
+                # velocity limits from articulation (per joint), fall back to None on failure
+                try:
+                    vel_lim = robot.data.joint_vel_limits[0].cpu().numpy()
+                    yb_vel_lim = [float(vel_lim[joint_names.index(name)]) for name in yb_names]
+                except Exception:
+                    yb_vel_lim = [None] * n
+
+                def _plot_panel(arr, ylabel, title, fname, hlines=None):
+                    fig, axes = plt.subplots(n, 1, figsize=(11, 1.7 * n + 1), sharex=True)
+                    if n == 1:
+                        axes = [axes]
+                    for i, ax in enumerate(axes):
+                        ax.plot(t_axis, arr[:, i], lw=1.2, color=f"C{i % 10}")
+                        ax.set_ylabel(f"{yb_names[i].replace('joint_', '')}\n({ylabel})", fontsize=9)
+                        ax.grid(alpha=0.3)
+                        ax.axhline(0, color="gray", lw=0.5, ls="--")
+                        if hlines is not None and hlines[i] is not None:
+                            ax.axhline(hlines[i], color="r", lw=0.6, ls=":")
+                            ax.axhline(-hlines[i], color="r", lw=0.6, ls=":")
+                    axes[-1].set_xlabel("time (s)")
+                    fig.suptitle(title, fontsize=12)
+                    plt.tight_layout()
+                    out = os.path.join(log_dir, fname)
+                    plt.savefig(out, dpi=110)
+                    plt.close(fig)
+                    print(f"[INFO] Saved plot: {out}")
+
+                run = os.path.basename(log_dir)
+                _plot_panel(yb_pos, "rad", f"right-arm joint positions — {run}",
+                            "play_joint_pos.png")
+                _plot_panel(yb_vel, "rad/s", f"right-arm joint velocities — {run}  (red dotted = velocity_limit)",
+                            "play_joint_vel.png", hlines=yb_vel_lim)
+                _plot_panel(yb_acc, "rad/s²", f"right-arm joint accelerations — {run}",
+                            "play_joint_acc.png")
+        except Exception as e:
+            print(f"[WARN] Failed to render play_joint_*.png: {e}")
 
     # close the simulator
     env.close()

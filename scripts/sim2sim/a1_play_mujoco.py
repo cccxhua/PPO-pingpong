@@ -18,14 +18,21 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import atexit
 import os
 import re
+import signal
+import time
 import time
 import xml.etree.ElementTree as ET
 
 # Must set GL backend BEFORE importing mujoco when running headless
 if "--headless" in os.sys.argv:
     os.environ.setdefault("MUJOCO_GL", "egl")
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 import mujoco
 import mujoco.viewer
@@ -35,7 +42,8 @@ import torch
 # Import from A1 deployment script
 import sys
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(SCRIPT_DIR, "..", "deploy"))
+REPO_ROOT_FOR_IMPORT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", ".."))
+sys.path.insert(0, os.path.join(REPO_ROOT_FOR_IMPORT, "worobots", "a1_robot_ppo"))
 from a1_table_tennis_deploy import (
     MotionLoader,
     PolicyRunner,
@@ -55,7 +63,26 @@ from a1_table_tennis_deploy import (
     STEP_DT,
     HIT_PHASE,
     KP, KD,
+    ACTION_SMOOTHING_ALPHA,
 )
+
+# Override BALL_ARRIVE_TIME_EST: compute dynamically from ball velocity at reset time.
+# Deploy code uses 0.43 (hardcoded), Isaac training computes from actual ball params.
+# We patch PhaseStateMachine.reset to compute it on the fly.
+import a1_table_tennis_deploy
+_orig_phase_reset = a1_table_tennis_deploy.PhaseStateMachine.reset
+
+def _patched_phase_reset(self, ball_pos, ball_vel):
+    """Compute BALL_ARRIVE_TIME_EST dynamically from ball velocity."""
+    # Estimate time for ball to reach racket zone
+    # Back-calculated from Isaac: BAT ≈ (ball_x - robot_x) / |vx| * 0.68
+    # This factor accounts for ball not traveling full distance to robot center
+    if abs(ball_vel[0]) > 0.1:
+        full_time = (ball_pos[0] - a1_table_tennis_deploy.ROBOT_POS[0]) / abs(ball_vel[0])
+        a1_table_tennis_deploy.BALL_ARRIVE_TIME_EST = full_time * 0.68
+    _orig_phase_reset(self, ball_pos, ball_vel)
+
+a1_table_tennis_deploy.PhaseStateMachine.reset = _patched_phase_reset
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -63,7 +90,7 @@ from a1_table_tennis_deploy import (
 
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 REPO_ROOT = os.path.abspath(os.path.join(PROJECT_ROOT, ".."))
-A1_BASE_DIR = os.path.join(REPO_ROOT, "A1")
+A1_BASE_DIR = os.path.join(os.path.expanduser("~"), "下载", "A1")
 A1_URDF_PATH = os.path.join(A1_BASE_DIR, "urdf/a1.urdf")
 A1_MESH_DIR = os.path.join(A1_BASE_DIR, "meshes")
 TABLE_USD_PATH = os.path.join(A1_BASE_DIR, "table_tennis_table.usd")
@@ -72,15 +99,38 @@ BALL_USD_PATH = os.path.join(A1_BASE_DIR, "ping_pong_ball.usd")
 SIM_DT = 0.005
 DECIMATION = 4  # 0.005 * 4 = 0.02s = 50Hz control (same as IsaacSim training)
 
-# Ball launch parameters — matching A1 training (ball from +X toward -X)
-BALL_LAUNCH = {
-    "x_range": (0.30, 0.40),
-    "y_range": (-0.08, 0.08),
-    "z_range": (1.05, 1.15),
-    "vx_range": (-3.2, -2.8),
-    "vy_range": (-0.2, 0.2),
-    "vz_range": (0.1, 0.3),
+# Ball launch parameters — DR_STAGE=1, SERVE_STAGE=1 (SERVE_A1_BALL)
+# A1 (ROBOT_SIDE=-1): ball spawns at +X, travels toward -X
+BALL_LAUNCH_FULL = {
+    "x_range": (0.20, 0.50),
+    "y_range": (-0.20, 0.24),
+    "z_range": (0.95, 1.40),
+    "vx_range": (-4.0, -2.9),
+    "vy_range": (-0.45, 0.55),
+    "vz_range": (-0.45, 0.80),
 }
+
+# Safe serve: central/slower subset (matches play.py --safe_serve)
+BALL_LAUNCH_SAFE = {
+    "x_range": (0.20, 0.50),
+    "y_range": (-0.09, 0.13),
+    "z_range": (1.085, 1.265),
+    "vx_range": (-3.45, -2.9),
+    "vy_range": (-0.20, 0.30),
+    "vz_range": (0.0, 0.80),
+}
+
+# Fixed serve: exact single point (matches Isaac --fixed_serve / MIDDLE_BALL)
+BALL_LAUNCH_FIXED = {
+    "x_range": (0.35, 0.35),
+    "y_range": (0.0, 0.0),
+    "z_range": (1.10, 1.10),
+    "vx_range": (-3.0, -3.0),
+    "vy_range": (0.0, 0.0),
+    "vz_range": (0.20, 0.20),
+}
+
+BALL_LAUNCH = BALL_LAUNCH_FULL  # switched by --safe-serve or --fixed-serve arg
 
 # Other joints to lock at default
 OTHER_JOINTS = {
@@ -102,14 +152,25 @@ def build_scene_from_urdf() -> tuple[mujoco.MjModel, mujoco.MjData]:
     ball_cfg = _parse_usd_ball(BALL_USD_PATH)
 
     # Build assets dict: MuJoCo URDF compiler resolves mesh filenames by BASENAME only.
-    # Load all STL files recursively, keyed by basename (right arm takes priority for
-    # duplicate names since left arm is locked and only needs visual).
+    # Priority: top-level meshes/ > A1_r subdirectory > everything else.
+    # This ensures base_link.STL loads the 8MB robot body (not the 105KB arm base).
     assets = {}
+    top_level_names = set()
+    for fn in os.listdir(A1_MESH_DIR):
+        if fn.endswith((".STL", ".stl", ".obj")):
+            full_path = os.path.join(A1_MESH_DIR, fn)
+            if os.path.isfile(full_path):
+                with open(full_path, "rb") as f:
+                    assets[fn] = f.read()
+                top_level_names.add(fn)
     for root_dir, _dirs, files in os.walk(A1_MESH_DIR):
+        if root_dir == A1_MESH_DIR:
+            continue
         for fn in files:
             if fn.endswith((".STL", ".stl", ".obj")):
+                if fn in top_level_names:
+                    continue
                 full_path = os.path.join(root_dir, fn)
-                # Right arm (A1_r) takes priority over left arm (A1_l) for duplicate basenames
                 if fn not in assets or "A1_r" in root_dir:
                     with open(full_path, "rb") as f:
                         assets[fn] = f.read()
@@ -157,6 +218,15 @@ def build_scene_from_urdf() -> tuple[mujoco.MjModel, mujoco.MjData]:
     # Weld non-controlled joints to lock them rigidly
     _weld_locked_joints(root)
 
+    # Add body panel meshes (WXL covers not in URDF but needed for collision check)
+    _add_body_panels(root, assets)
+
+    # Disable self-collision between robot body and arm links (matches Isaac collision filtering)
+    _add_self_collision_exclusions(root)
+
+    # Set paddle contact material to match Isaac PhysicsMaterial
+    _set_paddle_material(root)
+
     # Set offscreen framebuffer size for headless rendering
     visual = root.find("visual")
     if visual is None:
@@ -194,11 +264,8 @@ def _fix_robot_base(root: ET.Element):
         if joint.get("type", "hinge") == "free":
             robot_body.remove(joint)
 
-    # Fix the lift joint: use moderate range to allow compliance flex
-    for joint_elem in root.iter("joint"):
-        if joint_elem.get("name") == "joint_lift":
-            joint_elem.set("limited", "true")
-            joint_elem.set("range", "-0.35 0.0")
+    # Fix the lift joint: no longer needed since _weld_locked_joints removes it
+    # The link_lift body is now rigidly attached to base_link
 
 
 def _set_sim_options(root: ET.Element):
@@ -207,6 +274,7 @@ def _set_sim_options(root: ET.Element):
         option = ET.SubElement(root, "option")
     option.set("timestep", str(SIM_DT))
     option.set("gravity", "0 0 -9.81")
+    option.set("integrator", "implicitfast")
     option.set("cone", "elliptic")
     option.set("impratio", "2")
     option.set("iterations", "50")
@@ -386,9 +454,8 @@ def _add_ball(worldbody: ET.Element, ball_cfg: dict):
     geom.set("mass", str(ball_cfg["mass"]))
     color = ball_cfg["color"]
     geom.set("rgba", f"{color[0]} {color[1]} {color[2]} 1")
-    geom.set("friction",
-             f"{ball_cfg['dynamic_friction']} 0.005 0.001")
-    geom.set("solref", "-80000 -0.5")
+    geom.set("friction", "0.30 0.005 0.001")
+    geom.set("solref", "-80000 -15.0")
     geom.set("solimp", "0.9 0.95 0.001")
     geom.set("condim", "4")
     geom.set("priority", "1")
@@ -416,10 +483,13 @@ def _replace_actuators(root: ET.Element):
 
     actuator = ET.SubElement(root, "actuator")
 
-    mj_kp = {"joint_yb_1": 250.0, "joint_yb_2": 250.0, "joint_yb_3": 250.0,
-             "joint_yb_4": 120.0, "joint_yb_5": 120.0, "joint_yb_6": 120.0, "joint_yb_7": 120.0}
+    mj_kp = {"joint_yb_1": 100.0, "joint_yb_2": 100.0, "joint_yb_3": 100.0,
+             "joint_yb_4": 40.0, "joint_yb_5": 40.0, "joint_yb_6": 40.0, "joint_yb_7": 40.0}
     mj_kv = {"joint_yb_1": 1.0, "joint_yb_2": 1.0, "joint_yb_3": 1.0,
              "joint_yb_4": 0.5, "joint_yb_5": 0.5, "joint_yb_6": 0.5, "joint_yb_7": 0.5}
+    # Effort limits from Isaac training (ImplicitActuatorCfg)
+    mj_effort = {"joint_yb_1": 28.0, "joint_yb_2": 28.0, "joint_yb_3": 28.0,
+                 "joint_yb_4": 8.0, "joint_yb_5": 8.0, "joint_yb_6": 8.0, "joint_yb_7": 8.0}
 
     for name in RIGHT_ARM_JOINT_NAMES:
         lo, hi = JOINT_LIMITS[name]
@@ -429,20 +499,99 @@ def _replace_actuators(root: ET.Element):
         pos_act.set("kp", str(mj_kp[name]))
         pos_act.set("kv", str(mj_kv[name]))
         pos_act.set("ctrlrange", f"{lo} {hi}")
+        pos_act.set("forcelimited", "true")
+        pos_act.set("forcerange", f"{-mj_effort[name]} {mj_effort[name]}")
 
-    # Lift joint: high-stiffness position hold
-    lift_act = ET.SubElement(actuator, "position")
-    lift_act.set("name", "act_joint_lift")
-    lift_act.set("joint", "joint_lift")
-    lift_act.set("kp", "50000")
-    lift_act.set("kv", "5000")
-    lift_act.set("ctrlrange", "-0.35 0.0")
+
+def _add_body_panels(root: ET.Element, assets: dict):
+    """Add body panel meshes (Link_WXL_*) to base_link for collision detection and visual."""
+    panel_names = [
+        "Link_WXL_1_1", "Link_WXL_1_2",
+        "Link_WXL_2_1", "Link_WXL_2_2",
+        "Link_WXL_3_1", "Link_WXL_3_2",
+        "Link_WXL_4_1", "Link_WXL_4_2",
+    ]
+
+    # Check which panels are available in assets
+    available = [name for name in panel_names if f"{name}.STL" in assets]
+    if not available:
+        return
+
+    # Add mesh assets to the XML
+    asset_elem = root.find("asset")
+    if asset_elem is None:
+        asset_elem = ET.SubElement(root, "asset")
+
+    for name in available:
+        mesh_elem = ET.SubElement(asset_elem, "mesh")
+        mesh_elem.set("name", name)
+        mesh_elem.set("file", f"{name}.STL")
+
+    # Find base_link body and add panel geoms
+    worldbody = root.find("worldbody")
+    base_link = None
+    for body in worldbody.iter("body"):
+        if body.get("name") == "base_link":
+            base_link = body
+            break
+
+    if base_link is None:
+        # base_link might be the first direct child of worldbody
+        for child in worldbody:
+            if child.tag == "body":
+                base_link = child
+                break
+
+    if base_link is None:
+        return
+
+    for name in available:
+        geom = ET.SubElement(base_link, "geom")
+        geom.set("name", f"geom_{name}")
+        geom.set("type", "mesh")
+        geom.set("mesh", name)
+        geom.set("rgba", "0.7 0.7 0.7 1")
+        geom.set("contype", "1")
+        geom.set("conaffinity", "1")
+
+
+def _set_paddle_material(root: ET.Element):
+    """Set paddle geom friction to match Isaac PhysicsMaterial (μs=0.40, μd=0.30, e=0.92)."""
+    paddle_body_names = {"Link_yb_paddle", "link_yb_paddle"}
+    for body_elem in root.iter("body"):
+        if body_elem.get("name") not in paddle_body_names:
+            continue
+        for geom_elem in body_elem.findall("geom"):
+            if geom_elem.get("contype") == "0":
+                continue
+            geom_elem.set("friction", "0.30 0.005 0.001")
+            geom_elem.set("solref", "-80000 -15.0")
+            geom_elem.set("solimp", "0.9 0.95 0.001")
+            geom_elem.set("condim", "4")
+
+
+def _add_self_collision_exclusions(root: ET.Element):
+    """Disable self-collision between robot body/lift and arm links (matches Isaac collision filtering)."""
+    contact = root.find("contact")
+    if contact is None:
+        contact = ET.SubElement(root, "contact")
+
+    all_body_names = {b.get("name") for b in root.iter("body") if b.get("name")}
+    body_bases = [n for n in ["base_link", "link_lift"] if n in all_body_names]
+    arm_candidates = [f"link_yb_{i}" for i in range(1, 8)] + ["Link_yb_paddle"]
+    arm_links = [n for n in arm_candidates if n in all_body_names]
+
+    for base in body_bases:
+        for arm in arm_links:
+            exc = ET.SubElement(contact, "exclude")
+            exc.set("body1", base)
+            exc.set("body2", arm)
 
 
 def _increase_joint_damping(root: ET.Element):
-    """Lock non-controlled joints by constraining their range."""
+    """Configure joint damping. Arm joints get 0 passive damping (actuator kv handles it)."""
     arm_set = set(RIGHT_ARM_JOINT_NAMES)
-    lock_joints = (set(OTHER_JOINTS.keys()) | {"joint_right_wheel", "joint_left_wheel"}) - {"joint_lift"}
+    lock_joints = set(OTHER_JOINTS.keys()) | {"joint_right_wheel", "joint_left_wheel", "joint_lift"}
 
     for joint_elem in root.iter("joint"):
         name = joint_elem.get("name", "")
@@ -450,32 +599,36 @@ def _increase_joint_damping(root: ET.Element):
         if not name or jtype == "free":
             continue
         if name in arm_set:
-            joint_elem.set("damping", "1.0")
-            joint_elem.set("armature", "0.1")
-        elif name == "joint_lift":
-            joint_elem.set("damping", "100")
-            joint_elem.set("armature", "0.5")
+            joint_elem.set("damping", "0")
+            # Higher armature to approximate PhysX implicit actuator inertia
+            if name in ("joint_yb_1", "joint_yb_2", "joint_yb_3"):
+                joint_elem.set("armature", "0.5")
+            else:
+                joint_elem.set("armature", "0.3")
         elif name in lock_joints:
-            default_val = OTHER_JOINTS.get(name, 0.0)
-            eps = 0.001
-            joint_elem.set("limited", "true")
-            joint_elem.set("range", f"{default_val - eps} {default_val + eps}")
-            joint_elem.set("damping", "500")
-            joint_elem.set("armature", "5.0")
+            pass
         else:
             joint_elem.set("damping", "100")
             joint_elem.set("armature", "1.0")
 
 
 def _weld_locked_joints(root: ET.Element):
-    """Remove non-controlled joints to freeze bodies."""
-    arm_set = set(RIGHT_ARM_JOINT_NAMES) | {"ball_free", "joint_lift"}
+    """Remove non-controlled joints to freeze bodies (including joint_lift)."""
+    arm_set = set(RIGHT_ARM_JOINT_NAMES) | {"ball_free"}
 
     for body_elem in root.iter("body"):
         for joint_elem in list(body_elem.findall("joint")):
             name = joint_elem.get("name", "")
             if not name or name in arm_set:
                 continue
+            # For joint_lift (prismatic Z, value=-0.28): offset the body position
+            if name == "joint_lift":
+                axis_str = joint_elem.get("axis", "0 0 1")
+                axis = np.array([float(x) for x in axis_str.split()])
+                pos_str = body_elem.get("pos", "0 0 0")
+                pos = np.array([float(x) for x in pos_str.split()])
+                pos += axis * (-0.28)
+                body_elem.set("pos", f"{pos[0]} {pos[1]} {pos[2]}")
             body_elem.remove(joint_elem)
 
 
@@ -615,12 +768,21 @@ class A1Sim2SimRunner:
         self._init_actuator_ids()
 
         self.fk = URDFForwardKinematics(ROBOT_POS)
-        self._lift_qpos_id = None
-        lift_jid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, "joint_lift")
-        if lift_jid >= 0:
-            self._lift_qpos_id = self.model.jnt_qposadr[lift_jid]
 
         self.last_action = np.zeros(8, dtype=np.float32)
+        self._prev_residual = np.zeros(7, dtype=np.float32)
+
+        # Data logging for end-of-run plot
+        self._log_time = []
+        self._log_joint_pos = []
+        self._log_joint_vel = []
+        self._log_targets = []
+        self._log_torques = []
+        self._log_obs = []
+        self._log_episode_boundaries = []
+        self._log_hit_times = []
+        self._sim_time = 0.0
+        atexit.register(self._generate_plot)
 
     def _init_joint_ids(self):
         """Map right arm joint names to MuJoCo qpos/qvel indices."""
@@ -700,14 +862,6 @@ class A1Sim2SimRunner:
                 raise RuntimeError(f"Actuator 'act_{name}' not found")
             self.arm_actuator_ids.append(aid)
 
-        self.lift_actuator_id = mujoco.mj_name2id(
-            self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, "act_joint_lift"
-        )
-        if self.lift_actuator_id >= 0:
-            self.data.ctrl[self.lift_actuator_id] = -0.28
-        else:
-            print("[WARN] Lift actuator not found")
-
     def _get_joint_pos(self) -> np.ndarray:
         return np.array([self.data.qpos[i] for i in self.arm_qpos_ids], dtype=np.float32)
 
@@ -738,30 +892,17 @@ class A1Sim2SimRunner:
         return vel[0:3].astype(np.float32)
 
     def _get_racket_pos(self) -> np.ndarray:
-        """Compute racket position via FK from joint angles (same as real deployment)."""
-        joint_angles = self._get_joint_pos()
-        lift_q = self.data.qpos[self._lift_qpos_id] if self._lift_qpos_id is not None else -0.28
-        fk_pos = self.fk.compute(lift_q, joint_angles)
-
-        mj_pos = self.data.xpos[self.paddle_body_id].astype(np.float32)
-        diff = np.abs(fk_pos - mj_pos)
-        if diff.max() > 0.01:
-            print(f"    [FK WARN] diff={diff}, fk={fk_pos}, mj={mj_pos}")
-
-        return fk_pos
+        """Get racket position from MuJoCo body state (matches Isaac training which uses physics body_pos_w)."""
+        return self.data.xpos[self.paddle_body_id].astype(np.float32).copy()
 
     def _apply_targets(self, targets: np.ndarray):
-        """Apply joint targets with velocity-dependent limiting."""
-        vel_limits = np.array([8.0, 8.0, 8.0, 20.0, 20.0, 20.0, 20.0])
+        """Apply joint position targets directly (no gravity compensation).
+
+        Testing baseline: Isaac's ImplicitActuator doesn't explicitly compensate
+        gravity either — PhysX handles it internally in the solver.
+        """
         for i, aid in enumerate(self.arm_actuator_ids):
-            qvel = abs(self.data.qvel[self.arm_qvel_ids[i]])
-            vlim = vel_limits[i]
-            if qvel > vlim * 0.7:
-                scale = max(0.0, 1.0 - (qvel - vlim * 0.7) / (vlim * 0.3))
-                current = self.data.qpos[self.arm_qpos_ids[i]]
-                self.data.ctrl[aid] = current + scale * (targets[i] - current)
-            else:
-                self.data.ctrl[aid] = targets[i]
+            self.data.ctrl[aid] = targets[i]
 
     def _reset_ball(self):
         adr = self.ball_qpos_adr
@@ -781,24 +922,12 @@ class A1Sim2SimRunner:
         self.data.qvel[dadr + 3:dadr + 6] = [0, 0, 0]
 
     def _reset_robot_to_ref(self):
-        """Reset ALL robot joints to their initial positions."""
-        default_pos = np.array(
-            [DEFAULT_JOINT_POS[n] for n in RIGHT_ARM_JOINT_NAMES], dtype=np.float32
-        )
+        """Reset arm joints to reference trajectory at initial phase (matches training)."""
+        ref_dof, _, _ = self.phase_machine.get_reference()
         for i, qpos_id in enumerate(self.arm_qpos_ids):
-            self.data.qpos[qpos_id] = default_pos[i]
+            self.data.qpos[qpos_id] = ref_dof[i]
             self.data.qvel[self.arm_qvel_ids[i]] = 0.0
-        self._apply_targets(default_pos)
-
-        # Reset lift joint
-        lift_jid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, "joint_lift")
-        if lift_jid >= 0:
-            lift_qadr = self.model.jnt_qposadr[lift_jid]
-            lift_vadr = self.model.jnt_dofadr[lift_jid]
-            self.data.qpos[lift_qadr] = -0.28
-            self.data.qvel[lift_vadr] = 0.0
-            if self.lift_actuator_id >= 0:
-                self.data.ctrl[self.lift_actuator_id] = -0.28
+        self._apply_targets(ref_dof)
 
     def _ball_out_of_play(self) -> bool:
         ball_pos = self._get_ball_pos()
@@ -821,6 +950,10 @@ class A1Sim2SimRunner:
         pm.phase += correction
 
     def _reset_episode(self):
+        # Record episode boundary (skip the very first reset)
+        if self._log_time:
+            self._log_episode_boundaries.append(self._sim_time)
+
         ball_pos_init = np.array([
             np.random.uniform(*BALL_LAUNCH["x_range"]),
             np.random.uniform(*BALL_LAUNCH["y_range"]),
@@ -836,6 +969,7 @@ class A1Sim2SimRunner:
         self._reset_robot_to_ref()
         self._reset_ball()
         self.last_action[:] = 0.0
+        self._prev_residual[:] = 0.0
         mujoco.mj_forward(self.model, self.data)
 
     def _run_step(self, step_count: int) -> dict:
@@ -849,14 +983,33 @@ class A1Sim2SimRunner:
 
         if self.args.no_policy:
             action = np.zeros(8, dtype=np.float32)
+            raw_action = action
+            self._log_obs.append(np.zeros(57, dtype=np.float32))
         else:
             obs = self.obs_assembler.compute(
                 joint_pos, joint_vel,
                 ball_pos, ball_vel, ball_ang_vel,
                 racket_pos, self.phase_machine, self.last_action,
             )
+            # ball_spin: training uses ball_spin_zero (zero_ball_spin=True in env_cfg)
+            obs[35:38] = 0.0
+
+            self._log_obs.append(obs.copy())
             action = self.policy.infer(obs)
-            action = np.clip(action, -1.0, 1.0)
+            # NOTE: Do NOT clip action to [-1, 1] here!
+            # Training uses clip_actions=None, so policy outputs are unconstrained.
+
+            # ONNX output layout: [phase_speed, j1_res, j2_res, ..., j7_res]
+            # Remap to what process_action expects: [j1_res, ..., j7_res, phase_speed]
+            action = np.concatenate([action[1:8], action[0:1]])
+
+            # EMA smoothing on residual (action[0:7] = the 7 joint residuals after remap)
+            # Store RAW action for last_action obs (training sees raw, not smoothed)
+            raw_action = action.copy()
+            if ACTION_SMOOTHING_ALPHA > 0.0:
+                smoothed = ACTION_SMOOTHING_ALPHA * self._prev_residual + (1.0 - ACTION_SMOOTHING_ALPHA) * action[:7]
+                self._prev_residual = smoothed.copy()
+                action[:7] = smoothed
 
             if self.args.diag and step_count % 10 == 0:
                 print(f"  [DIAG step={step_count}] phase={self.phase_machine.phase:.3f}")
@@ -886,17 +1039,33 @@ class A1Sim2SimRunner:
 
         self._apply_targets(targets)
 
-        for _ in range(DECIMATION):
-            mujoco.mj_step(self.model, self.data)
-
-        self.phase_machine.step(phase_speed)
-        self.last_action = action.copy()
+        # Log data for plot
+        self._log_time.append(self._sim_time)
+        self._log_joint_pos.append(joint_pos.copy())
+        self._log_joint_vel.append(joint_vel.copy())
+        self._log_targets.append(targets.copy())
+        self._sim_time += STEP_DT
 
         hit_this_step = False
-        if not self.phase_machine.ball_was_hit and self._check_ball_paddle_contact():
-            self.phase_machine.mark_hit()
-            hit_this_step = True
-            print(f"    [HIT] step={step_count}, ball_pos={self._get_ball_pos()}")
+        for _ in range(DECIMATION):
+            mujoco.mj_step(self.model, self.data)
+            if not hit_this_step and not self.phase_machine.ball_was_hit and self._check_ball_paddle_contact():
+                self.phase_machine.mark_hit()
+                hit_this_step = True
+                self._log_hit_times.append(self._sim_time)
+                print(f"    [HIT] step={step_count}, ball_pos={self._get_ball_pos()}")
+
+        # Log actuator torques after step
+        torques = np.array([self.data.actuator_force[aid] for aid in self.arm_actuator_ids])
+        self._log_torques.append(torques.copy())
+
+        # Print arm joint torques (actuator force after step)
+        if self.args.diag and step_count % 5 == 0:
+            print(f"    [TORQUE step={step_count}] {np.array2string(torques, precision=2, suppress_small=True)}")
+
+        self.phase_machine.step(phase_speed)
+        # Store in ONNX order [phase_speed, residuals] for obs last_action term
+        self.last_action = np.concatenate([raw_action[7:8], raw_action[:7]])
 
         if self.args.debug:
             for i in range(self.data.ncon):
@@ -945,11 +1114,11 @@ class A1Sim2SimRunner:
                     step_count = 0
 
                 viewer.sync()
-                if self.args.real_time:
-                    elapsed = time.time() - t0
-                    remaining = STEP_DT - elapsed
-                    if remaining > 0:
-                        time.sleep(remaining)
+                # GUI 模式实时运行，--slow 控制速度
+                elapsed = time.time() - t0
+                remaining = STEP_DT / self.args.slow - elapsed
+                if remaining > 0:
+                    time.sleep(remaining)
 
     def run_headless(self, num_episodes: int = 5, video_path: str = None):
         """Run without GUI. Optionally record video."""
@@ -1011,6 +1180,112 @@ class A1Sim2SimRunner:
             print("  [WARN] imageio not installed, saving as .npy instead")
             np.save(path.replace(".mp4", ".npy"), np.array(frames))
 
+    def _generate_plot(self):
+        """Generate joint position & velocity plots (two separate images)."""
+        if not self._log_time or getattr(self, '_plot_saved', False):
+            return
+        self._plot_saved = True
+
+        from datetime import datetime
+        log_dir = os.path.join(
+            PROJECT_ROOT, "logs", "rsl_rl", "a1_tabletennis",
+            datetime.now().strftime("%Y-%m-%d_%H-%M-%S_sim2sim"),
+        )
+        os.makedirs(log_dir, exist_ok=True)
+
+        t = np.array(self._log_time)
+        jp = np.array(self._log_joint_pos)   # (N, 7)
+        jv = np.array(self._log_joint_vel)   # (N, 7)
+        tgt = np.array(self._log_targets)    # (N, 7)
+
+        # --- Save npz ---
+        obs_arr = np.array(self._log_obs) if self._log_obs else np.zeros((0, 57))
+        npz_path = os.path.join(log_dir, "sim2sim_joint_pos.npz")
+        np.savez(npz_path,
+                 joint_pos=jp,
+                 joint_vel=jv,
+                 targets=tgt,
+                 obs=obs_arr,
+                 time=t,
+                 reset_steps=np.array(self._log_episode_boundaries),
+                 hit_times=np.array(self._log_hit_times),
+                 joint_names=RIGHT_ARM_JOINT_NAMES,
+                 dt=STEP_DT)
+        print(f"  Saved npz: {npz_path}  shape={jp.shape}")
+
+        # --- Plot 1: Joint Positions ---
+        fig1, axes1 = plt.subplots(7, 1, figsize=(14, 14), sharex=True)
+        fig1.suptitle("A1 Sim2Sim: Joint Positions", fontsize=14)
+        for i in range(7):
+            ax = axes1[i]
+            ax.plot(t, jp[:, i], "b-", linewidth=0.8, label="actual")
+            ax.plot(t, tgt[:, i], "r--", linewidth=0.8, alpha=0.7, label="target")
+            ax.set_ylabel(f"J{i+1} (rad)", fontsize=9)
+            ax.grid(True, alpha=0.3)
+            if i == 0:
+                ax.legend(loc="upper right", fontsize=8)
+            for tb in self._log_episode_boundaries:
+                ax.axvline(tb, color="gray", linewidth=0.8, linestyle="--", alpha=0.5)
+            for th in self._log_hit_times:
+                ax.axvline(th, color="red", linewidth=1.2, alpha=0.8)
+        axes1[-1].set_xlabel("Time (s)")
+        if self._log_episode_boundaries or self._log_hit_times:
+            axes1[0].axvline(np.nan, color="gray", linestyle="--", label="episode reset")
+            axes1[0].axvline(np.nan, color="red", linewidth=1.2, label="hit")
+            axes1[0].legend(loc="upper right", fontsize=8)
+        plt.tight_layout()
+        pos_path = os.path.join(log_dir, "sim2sim_joint_pos.png")
+        plt.savefig(pos_path, dpi=150)
+        plt.close(fig1)
+
+        # --- Plot 2: Joint Velocities ---
+        fig2, axes2 = plt.subplots(7, 1, figsize=(14, 14), sharex=True)
+        fig2.suptitle("A1 Sim2Sim: Joint Velocities", fontsize=14)
+        for i in range(7):
+            ax = axes2[i]
+            ax.plot(t, jv[:, i], "g-", linewidth=0.8)
+            ax.set_ylabel(f"J{i+1} (rad/s)", fontsize=9)
+            ax.grid(True, alpha=0.3)
+            for tb in self._log_episode_boundaries:
+                ax.axvline(tb, color="gray", linewidth=0.8, linestyle="--", alpha=0.5)
+            for th in self._log_hit_times:
+                ax.axvline(th, color="red", linewidth=1.2, alpha=0.8)
+        axes2[-1].set_xlabel("Time (s)")
+        if self._log_episode_boundaries or self._log_hit_times:
+            axes2[0].axvline(np.nan, color="gray", linestyle="--", label="episode reset")
+            axes2[0].axvline(np.nan, color="red", linewidth=1.2, label="hit")
+            axes2[0].legend(loc="upper right", fontsize=8)
+        plt.tight_layout()
+        vel_path = os.path.join(log_dir, "sim2sim_joint_vel.png")
+        plt.savefig(vel_path, dpi=150)
+        plt.close(fig2)
+
+        # --- Plot 3: Joint Torques ---
+        if self._log_torques:
+            torq = np.array(self._log_torques)  # (N, 7)
+            effort_limits = [28.0, 28.0, 28.0, 8.0, 8.0, 8.0, 8.0]
+            fig3, axes3 = plt.subplots(7, 1, figsize=(14, 14), sharex=True)
+            fig3.suptitle("A1 Sim2Sim: Joint Torques (actuator_force)", fontsize=14)
+            for i in range(7):
+                ax = axes3[i]
+                ax.plot(t[:len(torq)], torq[:, i], "m-", linewidth=0.8)
+                ax.axhline(effort_limits[i], color="r", linestyle="--", linewidth=0.6, alpha=0.7)
+                ax.axhline(-effort_limits[i], color="r", linestyle="--", linewidth=0.6, alpha=0.7)
+                ax.set_ylabel(f"J{i+1} (Nm)", fontsize=9)
+                ax.grid(True, alpha=0.3)
+                for tb in self._log_episode_boundaries:
+                    ax.axvline(tb, color="gray", linewidth=0.8, linestyle="--", alpha=0.5)
+                for th in self._log_hit_times:
+                    ax.axvline(th, color="red", linewidth=1.2, alpha=0.8)
+            axes3[-1].set_xlabel("Time (s)")
+            axes3[0].legend(["torque", "effort limit"], loc="upper right", fontsize=8)
+            plt.tight_layout()
+            torq_path = os.path.join(log_dir, "sim2sim_joint_torque.png")
+            plt.savefig(torq_path, dpi=150)
+            plt.close(fig3)
+
+        print(f"  Joint plots saved: {log_dir}/")
+
     @property
     def is_done(self) -> bool:
         return self.phase_machine.swing_done and self.phase_machine.phase_speed == 0.0
@@ -1049,7 +1324,22 @@ def main():
                         help="Print ball contact debug info every step")
     parser.add_argument("--diag", action="store_true",
                         help="Print observation diagnostics every 10 steps")
+    parser.add_argument("--safe-serve", action="store_true",
+                        help="Use central/slower ball subset (no edge/fast balls)")
+    parser.add_argument("--fixed-serve", action="store_true",
+                        help="Use exact fixed ball (pos=[0.35,0,1.10], vel=[-3.0,0,0.20]), same as Isaac --fixed_serve")
+    parser.add_argument("--slow", type=float, default=1.0,
+                        help="Slow motion factor for viewer (e.g. --slow 0.2 = 5x slower)")
     args = parser.parse_args()
+
+    global BALL_LAUNCH
+    if args.fixed_serve:
+        BALL_LAUNCH = BALL_LAUNCH_FIXED
+        print("[FIXED_SERVE] Using exact fixed ball: pos=[0.35, 0, 1.10], vel=[-3.0, 0, 0.20]")
+    elif args.safe_serve:
+        BALL_LAUNCH = BALL_LAUNCH_SAFE
+        print("[SAFE_SERVE] Using safe ball range (central, slower)")
+
 
     if args.policy is None and args.checkpoint is None:
         default = os.path.join(
@@ -1064,10 +1354,21 @@ def main():
             return
 
     runner = A1Sim2SimRunner(args)
-    if args.headless:
-        runner.run_headless(num_episodes=args.episodes, video_path=args.video)
-    else:
-        runner.run()
+
+    def _sigint_handler(sig, frame):
+        print("\n[SIGINT] Saving plot before exit...")
+        runner._generate_plot()
+        raise SystemExit(0)
+
+    signal.signal(signal.SIGINT, _sigint_handler)
+
+    try:
+        if args.headless:
+            runner.run_headless(num_episodes=args.episodes, video_path=args.video)
+        else:
+            runner.run()
+    finally:
+        runner._generate_plot()
 
 
 if __name__ == "__main__":

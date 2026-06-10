@@ -357,10 +357,10 @@ Stephen Brawner (brawner@gmail.com)
       rpy="-1.57079632679545 0 -1.57079632679534" />
     <parent link="link_yb_1" />
     <child link="link_yb_2" />
-    <axis xyz="0 0 1" />
+    <axis xyz="0 0 -1" />
     <limit
-      lower="-3.081"
-      upper="0.314"
+      lower="-0.314"
+      upper="3.081"
       effort="0"
       velocity="0" />
   </joint>

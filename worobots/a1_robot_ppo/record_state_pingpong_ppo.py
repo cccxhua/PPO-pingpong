@@ -34,13 +34,13 @@ RIGHT_ARM_JOINT_NAMES = [
 
 # /joint_states 中右臂关节名称 → 输出索引 (0~6)
 RIGHT_ARM_SOURCE_NAMES = {
-    "joint1-r": 0,
-    "joint2-r": 1,
-    "joint3-r": 2,
-    "joint4-r": 3,
-    "joint5-r": 4,
-    "joint6-r": 5,
-    "joint7-r": 6,
+    "joint1-a1_r": 0,
+    "joint2-a1_r": 1,
+    "joint3-a1_r": 2,
+    "joint4-a1_r": 3,
+    "joint5-a1_r": 4,
+    "joint6-a1_r": 5,
+    "joint7-a1_r": 6,
 }
 
 PUBLISH_HZ = 50.0  # PPO 控制频率
