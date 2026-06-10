@@ -1,0 +1,154 @@
+x1/x1/urdf/x1.urdf
+  s_ae9f240a6baa18::t_0daa097dfd09ba 360,362-363
+scripts/sim2sim/a1_play_mujoco.py
+  s_a84a9a4c4dd15d::t_dff208c75c85d7 1007-1008
+  s_a84a9a4c4dd15d::t_4217df47481feb 1329-1330
+  s_a84a9a4c4dd15d::t_df02ce45b8a66b 781
+  s_a84a9a4c4dd15d::t_c3427f9ad33d84 33-36
+  s_a84a9a4c4dd15d::t_3ed450acaf572b 490-492
+  s_a84a9a4c4dd15d::t_9bccec08117398 277
+  s_a84a9a4c4dd15d::t_745eb4aa4d0fc5 77-79,81-82
+  s_a84a9a4c4dd15d::t_fd30162e9aad31 104,112-122
+  s_a84a9a4c4dd15d::t_96556e0b467994 1009-1012
+  s_a84a9a4c4dd15d::t_426cdb9c76831e 1336-1339
+  s_a84a9a4c4dd15d::t_dad4ae8bf13f59 603-607
+  s_a84a9a4c4dd15d::t_cfd46f38dcb2a2 592
+  s_a84a9a4c4dd15d::t_e3828126e7a3e5 1263-1286
+  s_a84a9a4c4dd15d::t_eea1b4d973e59c 996
+  s_a84a9a4c4dd15d::t_52edc70156c4e8 1062-1065
+  s_a84a9a4c4dd15d::t_10882ee0804515 986
+  s_a84a9a4c4dd15d::t_ee27f463f871d5 457-458
+  s_a84a9a4c4dd15d::t_e8f88843a6fedc 502-503
+  s_a84a9a4c4dd15d::t_a9d8657385d134 602
+  s_a84a9a4c4dd15d::t_ae9898eb85854c 616-617
+  s_a84a9a4c4dd15d::t_8808791169808a 1002-1006
+  s_a84a9a4c4dd15d::t_ce9219005325d4 66
+  s_a84a9a4c4dd15d::t_6a72744a00bc03 773
+  s_a84a9a4c4dd15d::t_d2f9283381bfda 1327-1328,1335,1340-1342
+  s_ae9f240a6baa18::t_239ee4f8625cd6 221-223
+  s_a84a9a4c4dd15d::t_c6a7d340dbd9d0 72,86
+  s_a84a9a4c4dd15d::t_5d552220b9aabb 900,903
+  s_a84a9a4c4dd15d::t_3d7666c1c595dd 558-572
+  s_a84a9a4c4dd15d::t_08655f295cb285 1053-1056
+  s_a84a9a4c4dd15d::t_0ac98309f0b56e 1183,1186,1188,1196-1200,1219,1225,1227,1229,1232,1236,1288
+  s_a84a9a4c4dd15d::t_8b43fc1aa54bc3 126,129
+  s_ae9f240a6baa18::t_ff28dfd3b22ccf 506-557
+  s_a84a9a4c4dd15d::t_70cc35a1da5963 1058-1060
+  s_a84a9a4c4dd15d::t_0274fb06f97a0a 1117,1119
+  s_a84a9a4c4dd15d::t_7d7ab2b82f8b8f 24-25
+  s_a84a9a4c4dd15d::t_2e4bfd466afe2c 21
+  s_a84a9a4c4dd15d::t_1169bba1cfb7b8 93
+  s_a84a9a4c4dd15d::t_b6809f134d73a3 579-582
+  s_a84a9a4c4dd15d::t_889e71454610e5 594,609
+  s_a84a9a4c4dd15d::t_4b3c86eeedf83d 925-926,928,930
+  s_a84a9a4c4dd15d::t_6418d52a4e78fa 953-956
+  s_a84a9a4c4dd15d::t_ebd2b43ba8a209 999-1000
+  s_a84a9a4c4dd15d::t_d355cea8495e3f 1357-1371
+  s_a84a9a4c4dd15d::t_7d892530427740 224-226
+  s_a84a9a4c4dd15d::t_50078907eda61f 1185,1187
+  s_a84a9a4c4dd15d::t_9a2816731fa13a 1331-1332
+  h_e20ef4bd1fe315 486-487
+  s_a84a9a4c4dd15d::t_556e4978f9cc00 994-995
+  s_a84a9a4c4dd15d::t_36a0c905fff4ec 1067-1068
+  s_a84a9a4c4dd15d::t_8c6cda70bc6ee3 895-896
+  s_a84a9a4c4dd15d::t_ceda27e4f49741 155-156,158-165,167-168,171-172
+  s_a84a9a4c4dd15d::t_317a825c34c019 1184,1189-1195,1216-1218,1220-1224,1226,1228,1230-1231,1233-1235,1237-1262,1287
+  s_a84a9a4c4dd15d::t_cc13989554f66f 624-631
+  s_a84a9a4c4dd15d::t_ca4ce8367baad2 227-229
+  s_a84a9a4c4dd15d::t_46333e61d32938 775-779,782-784
+  s_a84a9a4c4dd15d::t_85a5aa2c621f67 69-71,73-76,80,83-85
+  s_a84a9a4c4dd15d::t_69d7b648d6027f 123-124,133
+  s_a84a9a4c4dd15d::t_4599342592a8b2 987
+  s_a84a9a4c4dd15d::t_e462eda439ee9a 1042-1048
+  s_a84a9a4c4dd15d::t_3bd93a3b34f151 125,127-128,130
+  s_a84a9a4c4dd15d::t_caa2c4de60b53d 997
+  s_a84a9a4c4dd15d::t_acd0b6fb6e37d8 785
+  s_a84a9a4c4dd15d::t_a25e3e83eb1221 899,901-902,905
+  s_a84a9a4c4dd15d::t_5248c388fb15eb 45-46
+  s_a84a9a4c4dd15d::t_e82f7f3d387f28 102-103,105-110
+  s_a84a9a4c4dd15d::t_157f1300933827 267-268
+  s_a84a9a4c4dd15d::t_e52a27cff9c5b0 972
+  s_a84a9a4c4dd15d::t_d566712e84cb72 573-578,584-588
+  s_a84a9a4c4dd15d::t_62f26e99762e0e 1049,1052
+  s_a84a9a4c4dd15d::t_0f5835bd98c926 780
+  s_a84a9a4c4dd15d::t_156478c9d6d1af 1201,1203-1207,1209-1215
+  s_a84a9a4c4dd15d::t_fa67578f1c4532 1202,1208
+  s_ae9f240a6baa18::t_e88ed09bca0635 1118,1120-1121
+worobots/a1_robot_ppo/ppo_inference_pingpong.py
+  s_179d5fa2da32f7::t_443d20021db612 201-204
+  s_179d5fa2da32f7::t_6642549621ef1f 52-54
+  s_179d5fa2da32f7::t_9574b251935edd 126
+  s_179d5fa2da32f7::t_18ed0d31a83c0e 276
+  s_df6aa0db56b91c::t_5116f3d0384afd 483-484
+  s_179d5fa2da32f7::t_ba389bc14c04bb 295,297-307
+  s_179d5fa2da32f7::t_9ed14907911e82 501-502,508-530
+  s_179d5fa2da32f7::t_72a83d5b48e742 422-426
+  s_df6aa0db56b91c::t_5d93e149995f7f 184
+  s_179d5fa2da32f7::t_345cbc8ee813c0 81-87
+  s_179d5fa2da32f7::t_93b31f4c261b97 127-128
+  s_179d5fa2da32f7::t_062ccc9ed3e5c6 205-209
+  s_179d5fa2da32f7::t_6cf8e7bc0e314c 365-368,379-380
+  s_179d5fa2da32f7::t_347d79d118b1ce 452-453
+  s_179d5fa2da32f7::t_9a3ce169a1dcca 500,503-507,531-543
+  s_df6aa0db56b91c::t_466e4008244439 76
+  s_179d5fa2da32f7::t_b6322d26c2647c 265-268
+  s_179d5fa2da32f7::t_120bd1855ff43a 263,273-275,277-278
+  s_179d5fa2da32f7::t_3ce14de4a9e9fa 326-330
+  s_179d5fa2da32f7::t_ec5401c6894a33 162-163
+scripts/sim2sim/README.md
+  h_e20ef4bd1fe315 10,13,41,56,87,163-164,176,236-238,263,268,287-288
+  s_179d5fa2da32f7::t_1b6b913d59c3db 1-9,11-12,14-40,42-55,57-86,88-162,165-175,177-235,239-262,264-267,269-286,289-297
+scripts/deploy/x1_table_tennis_deploy.py
+  s_ae9f240a6baa18::t_0daa097dfd09ba 41,52-54,58-64,73,81-82
+deploy/include/isaaclab/envs/mdp/actions/joint_actions.h
+  s_a84a9a4c4dd15d::t_e22f9a26791e94 115-284
+scripts/sim2sim/x1_play_mujoco.py
+  s_ae9f240a6baa18::t_0daa097dfd09ba 61-63,73-75,77,533
+worobots/a1_robot_ppo/record_state_pingpong_ppo.py
+  s_179d5fa2da32f7::t_fd246d45294a13 37-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "a21e7d831098e1efa8b5446e2d6087a8e9677ee1",
+  "prompts": {},
+  "humans": {
+    "h_e20ef4bd1fe315": {
+      "author": "cenxinhua <cenxinhua@onerobot.com>"
+    }
+  },
+  "sessions": {
+    "s_179d5fa2da32f7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1dc8c037-e0ad-41d6-9b10-2b9bbd5c33fc",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "cenxinhua <cenxinhua@onerobot.com>"
+    },
+    "s_a84a9a4c4dd15d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "add71b03-f07b-46c0-bfc1-395a2d171e69",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "cenxinhua <cenxinhua@onerobot.com>"
+    },
+    "s_ae9f240a6baa18": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9d443918-bb8b-4887-934d-27cf53a2bf2d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "cenxinhua <cenxinhua@onerobot.com>"
+    },
+    "s_df6aa0db56b91c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "298fa7cd-8871-4101-97c7-60d4430179f6",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "cenxinhua <cenxinhua@onerobot.com>"
+    }
+  }
+}
